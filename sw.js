@@ -1,5 +1,5 @@
 // Keeps the app working offline. Bump VERSION when you change any file.
-const VERSION = 'closet-v2';
+const VERSION = 'closet-v3';
 const SHELL = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -9,11 +9,12 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('closet-') && k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
+// Only clears this app's own old caches, so the downloaded tagging model is kept.
 // App files: serve from cache, refresh in the background. Weather requests go straight to the network.
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
