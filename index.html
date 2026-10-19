@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Closet</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Closet">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E9ECEF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12151C" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<style>
+:root{
+  --bg:#E9ECEF; --paper:#FFFFFF; --sunk:#DCE0E6; --ink:#1C2333; --ink-2:#5A6375;
+  --rule:#C9CFD8; --accent:#2F4BC4; --on-accent:#FFFFFF; --danger:#B3261E;
+  --serif:ui-serif,"New York",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#12151C;--paper:#1C212B;--sunk:#262C38;--ink:#E8EBF0;--ink-2:#9AA3B2;--rule:#2F3644;--accent:#93A5FF;--on-accent:#0E1430;--danger:#FF8A80}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--sans);-webkit-text-size-adjust:100%}
+body{padding:env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom))}
+main{max-width:640px;margin:0 auto;padding:0 16px}
+.screen{display:none;padding-top:10px}
+.screen.on{display:block}
+h1{font:600 32px/1.12 var(--serif);margin:10px 0 2px;letter-spacing:-.01em}
+h2{font:600 19px/1.25 var(--serif);margin:26px 0 8px}
+p{margin:6px 0}
+.muted{color:var(--ink-2)}
+.small{font-size:13px}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+:focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px;padding:0 18px;border-radius:12px;background:var(--paper);border:1px solid var(--rule);font-weight:600}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.btn.block{width:100%}
+.btn.danger{color:var(--danger)}
+.btn.link{background:none;border:0;padding:0 4px;min-height:44px;color:var(--accent)}
+.row{display:flex;gap:10px;margin-top:12px}
+.row>.btn{flex:1}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+
+/* chips */
+.chips{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:4px 16px 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips.wrap{flex-wrap:wrap;overflow:visible;margin:0;padding:0}
+.chip{flex:none;min-height:38px;padding:0 15px;border-radius:999px;border:1px solid var(--rule);background:var(--paper);font-size:15px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* segmented */
+.seg{display:flex;background:var(--sunk);border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;min-height:36px;border-radius:8px;font-size:15px;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.14)}
+
+/* weather */
+.wx{display:flex;width:100%;text-align:left;align-items:center;gap:12px;margin:12px 0 4px;padding:12px 14px;border-radius:14px;background:var(--paper)}
+.wx .temp{font:600 30px/1 var(--serif);min-width:62px}
+.wx .det{flex:1;font-size:14px;color:var(--ink-2);line-height:1.35}
+.wx .det b{color:var(--ink);font-weight:600}
+.wx .chg{color:var(--accent);font-weight:600;font-size:15px}
+
+/* outfit label: the signature */
+.label{position:relative;background:var(--paper);border-radius:8px;padding:12px 12px 10px;margin:16px 0 10px}
+.label::after{content:"";position:absolute;inset:5px;border:1.5px dashed var(--rule);border-radius:5px;pointer-events:none}
+.weave{display:flex;height:50px;border-radius:3px;overflow:hidden;position:relative}
+.weave>span{display:block}
+.weave::after{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.12) 0 1px,transparent 1px 3px),repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px)}
+.label-text{font:600 15px/1.3 var(--serif);text-align:center;margin-top:9px}
+@media (prefers-reduced-motion:no-preference){
+  .weave.fresh>span{animation:thread .5s ease-out both}
+  @keyframes thread{from{transform:scaleY(0);transform-origin:top}to{transform:scaleY(1)}}
+}
+
+.pieces{display:flex;flex-direction:column;gap:8px}
+.piece{display:flex;align-items:center;gap:12px;background:var(--paper);border-radius:14px;padding:8px 10px 8px 8px}
+.piece img{width:74px;height:74px;border-radius:10px;object-fit:cover;flex:none;background:var(--sunk)}
+.piece .meta{flex:1;min-width:0}
+.piece .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.piece .sub{font-size:13px;color:var(--ink-2)}
+.swap{color:var(--accent);font-weight:600;font-size:15px;min-height:44px;padding:0 6px}
+.why{margin:14px 0 0;padding:0;list-style:none}
+.why li{position:relative;padding:6px 0 6px 18px;font-size:15px;color:var(--ink-2);border-top:1px solid var(--rule)}
+.why li:first-child{border-top:0}
+.why li::before{content:"";position:absolute;left:2px;top:15px;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+.add-slot{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+
+.empty{background:var(--paper);border-radius:16px;padding:22px 18px;margin-top:16px}
+.empty h2{margin-top:0}
+.note{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--sunk);border-radius:12px;padding:6px 6px 6px 14px;margin-top:14px;font-size:14px}
+
+/* closet grid */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+@media (min-width:520px){.grid{grid-template-columns:repeat(4,1fr)}}
+.tile{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--paper);display:block;width:100%}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile .dot{position:absolute;left:6px;bottom:6px;width:16px;height:16px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.tile.laundry img{opacity:.35}
+.tile .tag{position:absolute;right:6px;top:6px;font-size:11px;font-weight:600;background:var(--ink);color:var(--bg);padding:2px 7px;border-radius:6px}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,12,18,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .2s}
+.scrim.on{opacity:1}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;max-height:92dvh;overflow-y:auto;border-radius:18px 18px 0 0;padding:8px 16px calc(22px + env(safe-area-inset-bottom));transform:translateY(28px);transition:transform .22s ease-out;overscroll-behavior:contain}
+.scrim.on .sheet{transform:none}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--rule);margin:4px auto 8px}
+.sheet h2{margin-top:6px}
+@media (prefers-reduced-motion:reduce){.scrim,.sheet{transition:none}}
+
+.photo{width:100%;max-height:280px;object-fit:contain;background:var(--sunk);border-radius:14px;display:block}
+.field{margin:16px 0}
+.lbl{display:block;font-size:14px;font-weight:600;margin-bottom:7px}
+.hint{font-size:13px;color:var(--ink-2);margin-top:5px}
+input[type=text],input[type=search],select{width:100%;min-height:46px;padding:0 12px;border-radius:11px;border:1px solid var(--rule);background:var(--paper);color:var(--ink);font:inherit;font-size:16px;-webkit-appearance:none;appearance:none}
+.swatches{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sw{width:42px;height:42px;border-radius:50%;border:2px solid var(--paper);box-shadow:0 0 0 1px var(--rule)}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--ink)}
+.sw-pick{position:relative;width:42px;height:42px;border-radius:50%;border:1.5px dashed var(--ink-2);display:grid;place-items:center;font-size:22px;color:var(--ink-2);overflow:hidden}
+.sw-pick input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:50px;border-top:1px solid var(--rule)}
+.switch{position:relative;width:51px;height:31px;flex:none}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.switch span{position:absolute;inset:0;border-radius:31px;background:var(--sunk);transition:background .15s}
+.switch span::after{content:"";position:absolute;left:2px;top:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.switch input:checked+span{background:var(--accent)}
+.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{outline:2.5px solid var(--accent);outline-offset:2px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+
+.alt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:8px;border-radius:14px;background:var(--paper);margin-bottom:8px}
+.alt img{width:60px;height:60px;border-radius:9px;object-fit:cover;flex:none}
+.alt .meta{flex:1;min-width:0}
+.fit{font-size:13px;font-weight:600}
+.fit.great{color:#1E7A46}
+@media (prefers-color-scheme:dark){.fit.great{color:#7BD8A0}}
+
+.card{background:var(--paper);border-radius:14px;padding:4px 14px 12px}
+.card .toggle:first-child{border-top:0}
+.results button{display:block;width:100%;text-align:left;padding:12px 4px;border-top:1px solid var(--rule)}
+
+/* tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;justify-content:space-around;background:var(--bg);background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--rule);padding:4px 8px calc(4px + env(safe-area-inset-bottom))}
+nav.tabs button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:50px;font-size:11px;font-weight:500;color:var(--ink-2)}
+nav.tabs button[aria-current="page"]{color:var(--accent)}
+nav.tabs svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:15px;z-index:60;max-width:calc(100% - 32px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <section id="today" class="screen on" aria-label="Today's outfit"></section>
+  <section id="closet" class="screen" aria-label="Closet"></section>
+  <section id="settings" class="screen" aria-label="Settings"></section>
+</main>
+
+<nav class="tabs" aria-label="Main">
+  <button data-tab="today" aria-current="page">
+    <svg viewBox="0 0 24 24"><path d="M12 4.5a2 2 0 1 1 2 2c-.9 0-2 .6-2 1.6v.4m0 0L3.6 15.2c-.9.7-.4 2.1.7 2.1h15.4c1.1 0 1.6-1.4.7-2.1L12 8.5Z"/></svg>Outfit</button>
+  <button data-tab="closet">
+    <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18M10 11v2M14 11v2"/></svg>Closet</button>
+  <button data-action="add">
+    <svg viewBox="0 0 24 24"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.4-2h4.8l1.4 2h1.7A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5Z"/><path d="M12 9.5v5M9.5 12h5"/></svg>Add</button>
+  <button data-tab="settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>Settings</button>
+</nav>
+
+<input type="file" id="picker" accept="image/*" multiple hidden>
+<input type="file" id="importer" accept="application/json,.json" hidden>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+'use strict';
+/* ---------- constants ---------- */
+const CATS={top:'Top',bottom:'Bottom',outer:'Outerwear',shoes:'Shoes',accessory:'Accessory'};
+const PLURAL={top:'Tops',bottom:'Bottoms',outer:'Outerwear',shoes:'Shoes',accessory:'Accessories'};
+const CAT_ORDER=['outer','top','bottom','shoes','accessory'];
+const SEASONS=['spring','summer','fall','winter'];
+const STYLES=['casual','work','formal','athletic','going out','lounge'];
+const WARMTH={1:'Light',2:'Medium',3:'Warm'};
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ---------- storage ---------- */
+const db=(()=>{
+  let p;
+  const open=()=>p||(p=new Promise((res,rej)=>{
+    const r=indexedDB.open('closet',1);
+    r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('items',{keyPath:'id'});d.createObjectStore('history',{keyPath:'id'});};
+    r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);
+  }));
+  const tx=async(store,mode,fn)=>{const d=await open();return new Promise((res,rej)=>{
+    const t=d.transaction(store,mode),r=fn(t.objectStore(store));let out;
+    if(r)r.onsuccess=()=>{out=r.result};
+    t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error);
+  });};
+  return{all:s=>tx(s,'readonly',st=>st.getAll()),put:(s,v)=>tx(s,'readwrite',st=>st.put(v)),del:(s,k)=>tx(s,'readwrite',st=>st.delete(k))};
+})();
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+let settings=Object.assign({location:null,avoidDays:3,manual:null,lastBackup:null},ls.get('closet.settings',{}));
+const saveSettings=()=>ls.set('closet.settings',settings);
+
+/* ---------- state ---------- */
+let items=[],wx=null,wxError=null,day=0,style='any',current=null,currentKey='',shown=new Set(),closetFilter='all';
+const getItem=id=>items.find(i=>i.id===id);
+const avail=()=>items.filter(i=>!i.inLaundry);
+
+/* ---------- color ---------- */
+const hexToRgb=h=>{h=h.replace('#','');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16))};
+const rgbToHex=c=>'#'+c.map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;let h=0,s=0;
+  if(mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h*=60}return{h,s,l}}
+const _desc=new Map();
+function describe(hex){
+  if(_desc.has(hex))return _desc.get(hex);
+  const{h,s,l}=rgbToHsl(...hexToRgb(hex));let name,neutral=false;
+  if(l<0.13){name='black';neutral=true}
+  else if(l>0.88){name=(h>=25&&h<=60&&s>0.35)?'cream':'white';neutral=true}
+  else if(s<0.12){name=l<0.35?'charcoal':l<0.68?'gray':'light gray';neutral=true}
+  else if(h>=200&&h<=250&&l<0.3){name='navy';neutral=true}
+  else if(h>=195&&h<=232&&s<0.55&&l<0.65){name='denim';neutral=true}
+  else if(h>=20&&h<=55&&s<0.55&&l>=0.6){name=l>0.78?'cream':'tan';neutral=true}
+  else if(h>=12&&h<=45&&l<0.42){name='brown';neutral=true}
+  else if(h>=45&&h<=80&&l<0.42&&s<0.6){name='olive';neutral=true}
+  else if(h<12||h>=345)name=l<0.33?'burgundy':l>0.7?'pink':'red';
+  else if(h<42)name=l>0.72?'peach':'orange';
+  else if(h<66)name=l<0.45?'mustard':'yellow';
+  else if(h<95)name=l<0.45?'olive':'lime';
+  else if(h<165)name=l<0.3?'forest green':l>0.7?'mint':'green';
+  else if(h<195)name='teal';
+  else if(h<250)name=l>0.7?'light blue':'blue';
+  else if(h<290)name=l>0.7?'lavender':'purple';
+  else name=l<0.4?'plum':'pink';
+  const o={hex,name,neutral,h,s,l};_desc.set(hex,o);return o;
+}
+function pairScore(a,b){
+  if(a.neutral&&b.neutral){if(a.name===b.name&&a.name!=='denim')return{s:0.9,why:'tonal'};return{s:1.25,why:'neutrals'}}
+  if(a.neutral||b.neutral)return{s:1.5,why:'anchor'};
+  let d=Math.abs(a.h-b.h);if(d>180)d=360-d;
+  const vib=a.s>0.65&&b.s>0.65&&Math.abs(a.l-b.l)<0.12;
+  if(d<18)return{s:1.35+(Math.abs(a.l-b.l)>0.15?0.4:0),why:'mono'};
+  if(d<50)return{s:1.3,why:'analogous'};
+  if(d>=150)return{s:vib?0.2:1.4,why:'complement'};
+  if(d>=105&&d<=135)return{s:vib?0:0.7,why:'triad'};
+  return{s:-0.8,why:'clash'};
+}
+function extractColors(src){
+  const S=48,c=document.createElement('canvas');c.width=S;c.height=S;
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,S,S);
+  const d=x.getImageData(0,0,S,S).data,px=(i,j)=>{const k=(j*S+i)*4;return[d[k],d[k+1],d[k+2]]};
+  const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+  const border=[];for(let i=0;i<S;i++)for(let j=0;j<S;j++)if(i<3||j<3||i>=S-3||j>=S-3)border.push(px(i,j));
+  const mean=[0,1,2].map(k=>border.reduce((a,p)=>a+p[k],0)/border.length);
+  const spread=border.reduce((a,p)=>a+dist(p,mean),0)/border.length;
+  const pts=[],wts=[],all=[],allw=[];
+  for(let j=0;j<S;j++)for(let i=0;i<S;i++){
+    const dx=(i+.5-S/2)/(S/2),dy=(j+.5-S/2)/(S/2),r2=dx*dx+dy*dy;if(r2>0.9)continue;
+    const p=px(i,j),w=1-0.6*r2;all.push(p);allw.push(w);
+    if(spread<38&&dist(p,mean)<48)continue; // looks like plain background
+    pts.push(p);wts.push(w);
+  }
+  let P=pts,W=wts;if(P.length<60){P=all;W=allw}
+  const cent=[P[Math.floor(P.length/2)].slice()];
+  while(cent.length<4){let bi=0,bd=-1;P.forEach((p,i)=>{const m=Math.min(...cent.map(q=>dist(p,q)));if(m>bd){bd=m;bi=i}});if(bd<14)break;cent.push(P[bi].slice())}
+  let wk=cent.map(()=>0);
+  for(let it=0;it<10;it++){
+    const sums=cent.map(()=>[0,0,0,0]);
+    P.forEach((p,i)=>{let bi=0,bd=1e9;cent.forEach((q,k)=>{const dd=dist(p,q);if(dd<bd){bd=dd;bi=k}});const s=sums[bi];s[0]+=p[0]*W[i];s[1]+=p[1]*W[i];s[2]+=p[2]*W[i];s[3]+=W[i]});
+    sums.forEach((s,k)=>{if(s[3])cent[k]=[s[0]/s[3],s[1]/s[3],s[2]/s[3]]});wk=sums.map(s=>s[3]);
+  }
+  const tot=wk.reduce((a,b)=>a+b,0)||1;
+  const cl=cent.map((q,k)=>({c:q,w:wk[k]/tot})).filter(o=>o.w>=0.08).sort((a,b)=>b.w-a.w);
+  const res=[];cl.forEach(o=>{const m=res.find(r=>dist(r.c,o.c)<34);if(m)m.w+=o.w;else res.push(o)});
+  return res.slice(0,3).map(o=>rgbToHex(o.c));
+}
+
+/* ---------- photos ---------- */
+async function loadImage(file){
+  const url=URL.createObjectURL(file);const img=new Image();img.src=url;
+  try{await img.decode()}catch(e){URL.revokeObjectURL(url);throw new Error('That file could not be opened as a photo.')}
+  return{img,done:()=>URL.revokeObjectURL(url)};
+}
+// Hook for adding on-phone AI tagging later. Return partial fields (e.g. {category:'top'}) or null.
+async function autoTag(canvas){return null}
+async function processFile(file){
+  const{img,done}=await loadImage(file);
+  const max=720,sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);done();
+  const colors=extractColors(c);const guess=await autoTag(c)||{};
+  return Object.assign({id:uid(),photo:c.toDataURL('image/jpeg',0.8),colors,primary:colors[0]||'#888888',name:'',category:'top',
+    seasons:[...SEASONS],styles:['casual'],warmth:2,waterproof:false,inLaundry:false,lastWorn:null,wornCount:0,added:Date.now()},guess);
+}
+const NOUN={top:'top',bottom:'pants',outer:'jacket',shoes:'shoes',accessory:'accessory'};
+const itemName=p=>p.name||`${cap(describe(p.primary).name)} ${NOUN[p.category]}`;
+
+/* ---------- weather ---------- */
+const wxWord=c=>c===0?'clear':c<=3?'partly cloudy':c<=48?'fog':c<=57?'drizzle':c<=67?'rain':c<=77?'snow':c<=82?'showers':c<=86?'snow showers':'storms';
+async function fetchWeather(force){
+  const loc=settings.location;if(!loc)return null;
+  const key=`${loc.lat.toFixed(2)},${loc.lon.toFixed(2)}`,c=ls.get('closet.wx',null);
+  if(!force&&c&&c.key===key&&Date.now()-c.ts<30*60e3)return c.data;
+  const u=`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&temperature_unit=fahrenheit&timezone=auto&forecast_days=2`;
+  const r=await fetch(u);if(!r.ok)throw new Error('Weather service returned '+r.status);const j=await r.json();
+  const data={now:Math.round(j.current.temperature_2m),code:j.current.weather_code,
+    days:[0,1].map(i=>({high:Math.round(j.daily.temperature_2m_max[i]),low:Math.round(j.daily.temperature_2m_min[i]),rain:j.daily.precipitation_probability_max?.[i]??0,code:j.daily.weather_code[i]}))};
+  ls.set('closet.wx',{key,ts:Date.now(),data});return data;
+}
+async function refreshWeather(force){
+  if(!settings.location)return;
+  try{wx=await fetchWeather(force);wxError=null}catch(e){wxError=e.message;const c=ls.get('closet.wx',null);if(c)wx=c.data}
+  renderToday();
+}
+
+/* ---------- outfit engine ---------- */
+const seasonOf=d=>{const m=d.getMonth();return m<2||m===11?'winter':m<5?'spring':m<8?'summer':'fall'};
+function buildCtx(){
+  const date=new Date();date.setHours(12,0,0,0);date.setDate(date.getDate()+day);
+  const ctx={style,season:seasonOf(date),avoidDays:settings.avoidDays,date};
+  let w=null;
+  if(settings.manual)w={high:settings.manual.high,low:settings.manual.high-12,rain:settings.manual.rain?70:0,manual:true};
+  else if(wx)w={...wx.days[day]};
+  ctx.weather=w;
+  if(w){const h=w.high;ctx.warmthTarget=h>=78?1:h>=66?1.4:h>=52?2:h>=38?2.5:3;ctx.rainy=w.rain>=50;ctx.needOuter=w.low<55||h<62||ctx.rainy;ctx.outerTarget=h>=58?1:h>=42?2:3}
+  else{const t={summer:1,spring:1.8,fall:2,winter:2.8}[ctx.season];ctx.warmthTarget=t;ctx.outerTarget=Math.round(t);ctx.needOuter=ctx.season!=='summer';ctx.rainy=false}
+  return ctx;
+}
+function itemFit(p,ctx){
+  let s=0;
+  if(p.seasons?.length&&!p.seasons.includes(ctx.season))s-=1.2;
+  if(ctx.style!=='any'){
+    if(p.styles?.length&&!p.styles.includes(ctx.style))s-=(p.category==='shoes'||p.category==='accessory')?0.8:2.5;
+    else if(p.styles?.includes(ctx.style))s+=0.4;
+  }
+  if(['top','bottom','onepiece','outer'].includes(p.category))s-=Math.abs((p.warmth||2)-(p.category==='outer'?ctx.outerTarget:ctx.warmthTarget))*0.9;
+  if(ctx.rainy&&(p.category==='outer'||p.category==='shoes'))s+=p.waterproof?0.8:-0.4;
+  if(p.lastWorn&&ctx.avoidDays>0){const days=Math.max(0,(Date.now()-p.lastWorn)/864e5);if(days<ctx.avoidDays)s-=1.5*(1-days/ctx.avoidDays)+0.3}
+  return s;
+}
+function scoreOutfit(ps,ctx){
+  const ds=ps.map(p=>describe(p.primary||'#888888'));let sum=0,n=0;
+  for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){const w=(ps[i].category==='accessory'||ps[j].category==='accessory')?0.5:1;sum+=pairScore(ds[i],ds[j]).s*w;n+=w}
+  const fams=new Set(ds.filter(d=>!d.neutral).map(d=>Math.round(d.h/30)%12));
+  const loud=fams.size>=3?1.5*(fams.size-2):0;
+  return 3*(n?sum/n:1)+2*(ps.reduce((a,p)=>a+itemFit(p,ctx),0)/ps.length)-loud;
+}
+const sortSlots=ps=>[...ps].sort((a,b)=>CAT_ORDER.indexOf(a.category)-CAT_ORDER.indexOf(b.category));
+function generate(ctx){
+  const a=avail(),by=c=>a.filter(i=>i.category===c);
+  const tops=by('top'),bottoms=by('bottom'),outers=by('outer'),shoes=by('shoes'),accs=by('accessory');
+  const bases=[];tops.forEach(t=>bottoms.forEach(b=>bases.push([t,b])));
+  if(!bases.length)return null;
+  const best=(base,pool,noise)=>{let b=null,bs=-1e9;for(const x of pool){const s=scoreOutfit([...base,x],ctx)+Math.random()*noise;if(s>bs){bs=s;b=x}}return b};
+  const full=bases.map(b=>({b,s:scoreOutfit(b,ctx)+Math.random()*0.9})).sort((x,y)=>y.s-x.s).slice(0,24).map(({b})=>{
+    const ps=[...b];
+    if(ctx.needOuter&&outers.length)ps.push(best(ps,outers,0.5));
+    if(shoes.length)ps.push(best(ps,shoes,0.5));
+    if(accs.length){const acc=best(ps,accs,0.3);if(scoreOutfit([...ps,acc],ctx)>=scoreOutfit(ps,ctx)-0.15)ps.push(acc)}
+    return{ps,s:scoreOutfit(ps,ctx)+Math.random()*0.6};
+  }).sort((x,y)=>y.s-x.s);
+  const keyOf=ps=>ps.filter(p=>['top','bottom','onepiece'].includes(p.category)).map(p=>p.id).sort().join('+');
+  let pick=full.find(f=>!shown.has(keyOf(f.ps)));if(!pick){shown.clear();pick=full[0]}
+  shown.add(keyOf(pick.ps));
+  return{ids:sortSlots(pick.ps).map(p=>p.id)};
+}
+function explain(ps,ctx){
+  const out=[],main=ps.filter(p=>['top','bottom','onepiece','outer'].includes(p.category));
+  if(main.length>=2){
+    let bp=null;
+    for(let i=0;i<main.length;i++)for(let j=i+1;j<main.length;j++){const a=describe(main[i].primary),b=describe(main[j].primary),r=pairScore(a,b);if(!bp||r.s>bp.r.s)bp={a,b,r}}
+    const{a,b,r}=bp,A=a.name,B=b.name;
+    const t={neutrals:`${cap(A)} and ${B} are both neutrals, so they always work together.`,
+      tonal:`Head-to-toe ${A} reads clean and intentional.`,
+      anchor:`The ${a.neutral?A:B} keeps the ${a.neutral?B:A} grounded.`,
+      mono:`${cap(A)} and ${B} sit in the same color family, light against dark.`,
+      analogous:`${cap(A)} and ${B} are neighbors on the color wheel.`,
+      complement:`${cap(A)} and ${B} are opposites on the color wheel, so each one pops.`,
+      triad:`${cap(A)} and ${B} make a bold, high-contrast pairing.`,
+      clash:`${cap(A)} with ${B} is a risky pairing. Add more neutrals to your closet for safer picks.`}[r.why];
+    out.push(t);
+  }else if(main.length===1)out.push(`The ${itemName(main[0]).toLowerCase()} carries the outfit on its own.`);
+  const w=ctx.weather,outer=ps.find(p=>p.category==='outer');
+  if(w){
+    if(outer&&ctx.rainy&&outer.waterproof)out.push(`${w.rain}% chance of rain, so the waterproof ${itemName(outer).toLowerCase()}.`);
+    else if(outer)out.push(`High of ${w.high}°, low of ${w.low}°, so a layer on top.`);
+    else if(w.high>=78)out.push(`Warm day at ${w.high}°, so it stays light.`);
+    else out.push(`High of ${w.high}°, no jacket needed.`);
+    if(ctx.rainy&&!(outer&&outer.waterproof))out.push(`Rain is likely. Tag a jacket as waterproof so it gets picked on days like this.`);
+  }else out.push(`Picked for ${ctx.season}. Set your location in Settings to match the weather.`);
+  if(ctx.style!=='any'){
+    const all=ps.every(p=>!p.styles?.length||p.styles.includes(ctx.style));
+    out.push(all?`Every piece fits ${ctx.style}.`:`Not every piece is tagged ${ctx.style}, so this is the closest match.`);
+  }
+  return out;
+}
+
+/* ---------- UI helpers ---------- */
+let toastT;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+function sheet(html,onMount){
+  const s=document.createElement('div');s.className='scrim';
+  s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`;
+  document.body.appendChild(s);document.body.style.overflow='hidden';
+  requestAnimationFrame(()=>s.classList.add('on'));
+  const close=()=>{s.classList.remove('on');document.body.style.overflow='';setTimeout(()=>s.remove(),220)};
+  s.addEventListener('click',e=>{if(e.target===s)close()});
+  onMount&&onMount(s.firstElementChild,close);return close;
+}
+const chipBtns=(vals,sel,attr,label=cap)=>vals.map(v=>`<button type="button" class="chip" data-${attr}="${esc(v)}" aria-pressed="${sel.includes(v)}">${esc(label(v))}</button>`).join('');
+function show(tab){
+  $$('.screen').forEach(s=>s.classList.toggle('on',s.id===tab));
+  $$('nav.tabs [data-tab]').forEach(b=>b.toggleAttribute('aria-current',false));
+  $(`nav.tabs [data-tab="${tab}"]`).setAttribute('aria-current','page');
+  window.scrollTo(0,0);
+}
+
+/* ---------- Today ---------- */
+function renderToday(){
+  const el=$('#today'),ctx=buildCtx();
+  const dateStr=ctx.date.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'});
+  let wxHtml;
+  const w=ctx.weather;
+  if(w){
+    const live=!w.manual&&wx;
+    wxHtml=`<button class="wx" id="wxBtn"><span class="temp">${live&&day===0?wx.now:w.high}°</span><span class="det">
+      ${w.manual?`<b>Set by you</b><br>High ${w.high}°${w.rain?', rain':''}`:`<b>${cap(wxWord(w.code))}</b>, ${w.rain}% rain<br>High ${w.high}°, low ${w.low}°${settings.location?.name?`, ${esc(settings.location.name)}`:''}`}
+      ${wxError&&!w.manual?`<br>Showing saved weather. ${esc(wxError)}`:''}</span><span class="chg">Change</span></button>`;
+  }else{
+    wxHtml=`<button class="wx" id="wxBtn"><span class="temp">--°</span><span class="det"><b>${settings.location?'Loading weather':'No weather yet'}</b><br>${settings.location?'One moment':'Add your city so outfits match the forecast'}</span><span class="chg">Set</span></button>`;
+  }
+  const a=avail(),has=c=>a.some(i=>i.category===c);
+  const ready=has('top')&&has('bottom');
+  let body='';
+  if(!items.length){
+    body=`<div class="empty"><h2>Start with a few photos</h2><p class="muted">Lay each piece flat on a plain floor or bed, or hang it on a door, and take a photo. You can pick several from your library at once.</p><div class="row"><button class="btn primary" data-action="add">Add clothes</button></div></div>`;
+  }else if(!ready){
+    body=`<div class="empty"><h2>Almost there</h2><p class="muted">Outfits need at least one top and one bottom. ${items.length-a.length?'Some pieces are in the laundry.':''}</p><div class="row"><button class="btn primary" data-action="add">Add clothes</button></div></div>`;
+  }else{
+    const key=`${style}|${day}|${w?w.high+'/'+w.rain:''}`;
+    if(!current||key!==currentKey||current.ids.some(id=>!getItem(id)||getItem(id).inLaundry)){if(key!==currentKey)shown.clear();currentKey=key;current=generate(ctx)}
+    const ps=current.ids.map(getItem).filter(Boolean);
+    const weights={top:3,bottom:3,outer:3,shoes:1.5,accessory:1};
+    const stripes=ps.flatMap(p=>{const cs=(p.colors?.length?p.colors:[p.primary]);const main=[p.primary,...cs.filter(c=>c!==p.primary)].slice(0,2);const wt=weights[p.category];return main.map((c,i)=>`<span style="background:${c};flex:${i?wt*0.35:wt}"></span>`)}).join('');
+    const present=new Set(ps.map(p=>p.category));
+    const addable=['outer','shoes','accessory'].filter(c=>!present.has(c)&&has(c));
+    body=`<div class="label"><div class="weave fresh" id="weave">${stripes}</div><div class="label-text">${esc(dateStr)}</div></div>
+      <div class="pieces">${ps.map(p=>`<div class="piece"><img src="${p.photo}" alt=""><div class="meta"><div class="name">${esc(itemName(p))}</div><div class="sub">${CATS[p.category]}, ${describe(p.primary).name}</div></div><button class="swap" data-swap="${p.category}">Swap</button></div>`).join('')}</div>
+      ${addable.length?`<div class="add-slot">${addable.map(c=>`<button class="chip" data-addslot="${c}">Add ${CATS[c].toLowerCase()}</button>`).join('')}</div>`:''}
+      <ul class="why">${explain(ps,ctx).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>
+      <div class="row"><button class="btn" id="another">Another outfit</button><button class="btn primary" id="wear">Mark as worn</button></div>`;
+  }
+  const stale=items.length>=5&&(!settings.lastBackup||Date.now()-settings.lastBackup>30*864e5);
+  el.innerHTML=`<h1>${day?'Tomorrow':'Today'}</h1><p class="muted">${esc(dateStr)}</p>
+    <div class="seg" style="margin-top:12px"><button data-day="0" aria-pressed="${day===0}">Today</button><button data-day="1" aria-pressed="${day===1}">Tomorrow</button></div>
+    ${wxHtml}
+    <div class="chips" style="margin-top:8px">${chipBtns(['any',...STYLES],[style],'style',v=>v==='any'?'Any style':cap(v))}</div>
+    ${body}
+    ${stale?`<div class="note"><span>Your closet only lives on this phone. Save a backup.</span><button class="btn link" data-goto="settings">Back up</button></div>`:''}`;
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.tab){show(t.dataset.tab);if(t.dataset.tab==='today')renderToday();return}
+  if(t.dataset.goto){show(t.dataset.goto);return}
+  if(t.dataset.action==='add'){$('#picker').click();return}
+  if(!t.closest('#today'))return;
+  if(t.dataset.day!==undefined){day=+t.dataset.day;renderToday();return}
+  if(t.dataset.style){style=t.dataset.style;renderToday();return}
+  if(t.id==='another'){current=generate(buildCtx());renderToday();return}
+  if(t.id==='wear'){markWorn();return}
+  if(t.id==='wxBtn'){openWeather();return}
+  if(t.dataset.swap){openSwap(t.dataset.swap,false);return}
+  if(t.dataset.addslot){openSwap(t.dataset.addslot,true);return}
+});
+async function markWorn(){
+  const ctx=buildCtx(),when=day?ctx.date.getTime():Date.now();
+  for(const id of current.ids){const p=getItem(id);if(!p)continue;p.lastWorn=when;p.wornCount=(p.wornCount||0)+1;await db.put('items',p)}
+  await db.put('history',{id:uid(),date:ctx.date.toISOString().slice(0,10),itemIds:[...current.ids]});
+  toast(day?'Marked as worn tomorrow':'Marked as worn');
+}
+function openSwap(cat,adding){
+  const ctx=buildCtx(),ps=current.ids.map(getItem).filter(Boolean),cur=ps.find(p=>p.category===cat);
+  const rest=ps.filter(p=>p!==cur),base=scoreOutfit(ps,ctx);
+  const alts=avail().filter(i=>i.category===cat&&i!==cur).map(i=>({i,s:scoreOutfit([...rest,i],ctx)})).sort((a,b)=>b.s-a.s);
+  const word=s=>s>=base-0.3?['great','Great match']:s>=base-1.2?['','Good match']:['','Bolder choice'];
+  const html=`<h2>${adding?'Add':'Swap'} ${CATS[cat].toLowerCase()}</h2>
+    ${alts.length?alts.map(({i,s})=>{const[c,w]=word(s);return`<button class="alt" data-pick="${i.id}"><img src="${i.photo}" alt=""><span class="meta"><span class="name" style="display:block;font-weight:600">${esc(itemName(i))}</span><span class="fit ${c}">${w}</span></span></button>`}).join(''):`<p class="muted">No other clean ${PLURAL[cat].toLowerCase()} to choose from.</p>`}
+    ${!adding&&['outer','shoes','accessory'].includes(cat)?`<button class="btn block" data-remove="1" style="margin-top:6px">Remove from outfit</button>`:''}`;
+  sheet(html,(sh,close)=>sh.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b)return;
+    let next=rest;
+    if(b.dataset.pick)next=[...rest,getItem(b.dataset.pick)];else if(!b.dataset.remove)return;
+    current={ids:sortSlots(next).map(p=>p.id)};renderToday();close();
+  }));
+}
+function openWeather(){
+  const m=settings.manual||{high:wx?.days[day]?.high??60,rain:false};
+  sheet(`<h2>Weather for outfits</h2>
+    <div class="seg"><button data-mode="live" aria-pressed="${!settings.manual}">Live forecast</button><button data-mode="manual" aria-pressed="${!!settings.manual}">Set it myself</button></div>
+    <div id="liveBox" ${settings.manual?'hidden':''}>
+      <p class="muted" style="margin-top:14px">${settings.location?`Using the forecast for ${esc(settings.location.name||'your location')}.`:'No location set yet.'}</p>
+      <button class="btn block" data-goto="settings" id="toLoc">${settings.location?'Change location':'Set location'}</button>
+    </div>
+    <div id="manBox" ${settings.manual?'':'hidden'}>
+      <div class="field"><span class="lbl">High temperature: <span id="hv">${m.high}°F</span></span><input type="range" id="hi" min="0" max="105" value="${m.high}"></div>
+      <div class="toggle"><span>Rain expected</span><label class="switch"><input type="checkbox" id="rn" ${m.rain?'checked':''} aria-label="Rain expected"><span></span></label></div>
+    </div>
+    <div class="row"><button class="btn primary" id="wxSave">Save</button></div>`,(sh,close)=>{
+    let mode=settings.manual?'manual':'live';
+    sh.addEventListener('input',e=>{if(e.target.id==='hi')$('#hv',sh).textContent=e.target.value+'°F'});
+    sh.addEventListener('click',e=>{
+      const b=e.target.closest('button');if(!b)return;
+      if(b.dataset.mode){mode=b.dataset.mode;$$('[data-mode]',sh).forEach(x=>x.setAttribute('aria-pressed',x===b));$('#liveBox',sh).hidden=mode!=='live';$('#manBox',sh).hidden=mode!=='manual'}
+      if(b.id==='toLoc'){close();renderSettings()}
+      if(b.id==='wxSave'){settings.manual=mode==='manual'?{high:+$('#hi',sh).value,rain:$('#rn',sh).checked}:null;saveSettings();current=null;renderToday();close()}
+    });
+  });
+}
+
+/* ---------- Closet ---------- */
+function renderCloset(){
+  const el=$('#closet');
+  const counts={};items.forEach(i=>counts[i.category]=(counts[i.category]||0)+1);
+  const laundry=items.filter(i=>i.inLaundry).length;
+  const filters=['all',...Object.keys(CATS).filter(c=>counts[c])].concat(laundry?['laundry']:[]);
+  if(!filters.includes(closetFilter))closetFilter='all';
+  const list=items.filter(i=>closetFilter==='all'||(closetFilter==='laundry'?i.inLaundry:i.category===closetFilter)).sort((a,b)=>CAT_ORDER.indexOf(a.category)-CAT_ORDER.indexOf(b.category)||b.added-a.added);
+  el.innerHTML=`<div class="head"><div><h1>Closet</h1><p class="muted">${items.length} piece${items.length===1?'':'s'}${laundry?`, ${laundry} in the laundry`:''}</p></div><button class="btn primary" data-action="add">Add</button></div>
+    ${items.length?`<div class="chips" style="margin-top:12px">${chipBtns(filters,[closetFilter],'filter',v=>v==='all'?'All':v==='laundry'?'Laundry':`${PLURAL[v]} ${counts[v]}`)}</div>
+    <div class="grid">${list.map(i=>`<button class="tile${i.inLaundry?' laundry':''}" data-edit="${i.id}" aria-label="${esc(itemName(i))}"><img src="${i.photo}" alt="" loading="lazy"><span class="dot" style="background:${i.primary}"></span>${i.inLaundry?'<span class="tag">Laundry</span>':''}</button>`).join('')}</div>`
+    :`<div class="empty"><h2>Your closet is empty</h2><p class="muted">Tap Add to photograph your clothes. Pick several photos at once to go faster.</p></div>`}`;
+}
+$('#closet').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.filter){closetFilter=b.dataset.filter;renderCloset()}
+  if(b.dataset.edit)openEditor([{...getItem(b.dataset.edit)}],0,false);
+});
+
+/* ---------- Add / edit ---------- */
+$('#picker').addEventListener('change',async e=>{
+  const files=[...e.target.files];e.target.value='';if(!files.length)return;
+  const drafts=[];
+  for(let k=0;k<files.length;k++){
+    toast(files.length>1?`Reading photo ${k+1} of ${files.length}`:'Reading photo');
+    try{drafts.push(await processFile(files[k]))}catch(err){toast(err.message)}
+  }
+  $('#toast').hidden=true;
+  if(drafts.length)openEditor(drafts,0,true);
+});
+function openEditor(queue,idx,isNew,carry){
+  const it=queue[idx];
+  if(carry){Object.assign(it,{category:carry.category,seasons:[...carry.seasons],styles:[...carry.styles],warmth:carry.warmth})}
+  const total=queue.length,pos=total>1?` ${idx+1} of ${total}`:'';
+  const worn=!isNew&&it.wornCount?`Worn ${it.wornCount} time${it.wornCount===1?'':'s'}, last on ${new Date(it.lastWorn).toLocaleDateString(undefined,{month:'short',day:'numeric'})}.`:'';
+  const html=`<h2>${isNew?'New piece'+pos:'Edit piece'}</h2>
+    <img class="photo" src="${it.photo}" alt="">
+    <div class="field"><span class="lbl">Main color</span>
+      <div class="swatches" id="sws"></div>
+      <div class="hint">Tap the closest match if the guess is off, or use + to pick your own.</div></div>
+    <div class="field"><label class="lbl" for="nm">Name</label><input type="text" id="nm" value="${esc(it.name)}" placeholder="${esc(itemName({...it,name:''}))}" autocomplete="off"></div>
+    <div class="field"><span class="lbl">Type</span><div class="chips wrap" id="cat">${chipBtns(Object.keys(CATS),[it.category],'v',v=>CATS[v])}</div></div>
+    <div class="field"><span class="lbl">Seasons</span><div class="chips wrap" id="sea">${chipBtns(SEASONS,it.seasons,'v')}</div></div>
+    <div class="field"><span class="lbl">Style</span><div class="chips wrap" id="sty">${chipBtns(STYLES,it.styles,'v')}</div></div>
+    <div class="field"><span class="lbl">Warmth</span><div class="seg" id="wrm">${[1,2,3].map(v=>`<button type="button" data-v="${v}" aria-pressed="${it.warmth===v}">${WARMTH[v]}</button>`).join('')}</div></div>
+    <div class="card">
+      <div class="toggle"><span>Waterproof<br><span class="small muted">Gets picked on rainy days</span></span><label class="switch"><input type="checkbox" id="wp" ${it.waterproof?'checked':''} aria-label="Waterproof"><span></span></label></div>
+      ${isNew?'':`<div class="toggle"><span>In the laundry<br><span class="small muted">Left out of outfits until clean</span></span><label class="switch"><input type="checkbox" id="ld" ${it.inLaundry?'checked':''} aria-label="In the laundry"><span></span></label></div>`}
+    </div>
+    ${worn?`<p class="small muted" style="margin-top:12px">${worn}</p>`:''}
+    <div class="row"><button class="btn primary" id="save">${isNew&&idx<total-1?'Save and next':'Save'}</button></div>
+    ${isNew&&total>1?`<div class="row"><button class="btn" id="skip">Skip this photo</button></div>`:''}
+    ${isNew?'':`<div class="row"><button class="btn danger" id="del">Delete piece</button></div>`}`;
+  sheet(html,(sh,close)=>{
+    const drawSw=()=>{
+      const cs=[...new Set([...(it.colors||[]),it.primary])];
+      $('#sws',sh).innerHTML=cs.map(c=>`<button type="button" class="sw" data-c="${c}" style="background:${c}" aria-label="${describe(c).name}" aria-pressed="${c===it.primary}"></button>`).join('')+
+        `<label class="sw-pick" aria-label="Pick a color">+<input type="color" id="cp" value="${it.primary}"></label><span class="small muted">${cap(describe(it.primary).name)}</span>`;
+      $('#nm',sh).placeholder=itemName({...it,name:''});
+    };
+    drawSw();
+    sh.addEventListener('input',e=>{if(e.target.id==='cp'){it.primary=e.target.value;if(!it.colors.includes(it.primary))it.colors=[...it.colors.slice(0,3),it.primary];drawSw()}});
+    const single=(box,key,num)=>$$('button',box).forEach(b=>b.addEventListener('click',()=>{it[key]=num?+b.dataset.v:b.dataset.v;$$('button',box).forEach(x=>x.setAttribute('aria-pressed',x===b));$('#nm',sh).placeholder=itemName({...it,name:''})}));
+    const multi=(box,key)=>$$('button',box).forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.v,on=it[key].includes(v);it[key]=on?it[key].filter(x=>x!==v):[...it[key],v];b.setAttribute('aria-pressed',!on)}));
+    single($('#cat',sh),'category');single($('#wrm',sh),'warmth',true);multi($('#sea',sh),'seasons');multi($('#sty',sh),'styles');
+    sh.addEventListener('click',async e=>{
+      const b=e.target.closest('button');if(!b)return;
+      if(b.dataset.c){it.primary=b.dataset.c;drawSw();return}
+      if(b.id==='save'){
+        it.name=$('#nm',sh).value.trim();it.waterproof=$('#wp',sh).checked;if($('#ld',sh))it.inLaundry=$('#ld',sh).checked;
+        if(!it.seasons.length)it.seasons=[...SEASONS];
+        try{await db.put('items',it)}catch(err){toast('Could not save. Your phone may be out of space.');return}
+        const k=items.findIndex(x=>x.id===it.id);if(k>=0)items[k]=it;else items.push(it);
+        close();afterChange();
+        if(isNew&&idx<total-1)setTimeout(()=>openEditor(queue,idx+1,true,it),240);
+        else toast(isNew?(total>1?`Saved ${total} pieces`:'Saved'):'Saved');
+      }
+      if(b.id==='skip'){close();if(idx<total-1)setTimeout(()=>openEditor(queue,idx+1,true,carry),240)}
+      if(b.id==='del'){
+        if(!b.dataset.armed){b.dataset.armed='1';b.textContent='Tap again to delete';return}
+        await db.del('items',it.id);items=items.filter(x=>x.id!==it.id);close();afterChange();toast('Deleted');
+      }
+    });
+  });
+}
+function afterChange(){renderCloset();renderToday();renderSettings()}
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  const el=$('#settings'),laundry=items.filter(i=>i.inLaundry).length;
+  const last=settings.lastBackup?new Date(settings.lastBackup).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'never';
+  el.innerHTML=`<h1>Settings</h1>
+    <h2>Location for weather</h2>
+    <p class="muted">${settings.location?`Currently ${esc(settings.location.name||'your location')}.`:'Not set. Outfits fall back to the season.'}</p>
+    <div class="row"><button class="btn" id="geo">Use my location</button></div>
+    <div class="field"><label class="lbl" for="city">Or search for a city</label><input type="search" id="city" placeholder="Minneapolis" enterkeyhint="search" autocomplete="off"><div class="results" id="cityRes"></div></div>
+    <h2>Outfit repeats</h2>
+    <div class="field"><label class="lbl" for="avoid">Avoid pieces worn in the last</label>
+      <select id="avoid">${[0,1,2,3,5,7,14].map(d=>`<option value="${d}" ${settings.avoidDays===d?'selected':''}>${d===0?'No limit':d===1?'1 day':d+' days'}</option>`).join('')}</select></div>
+    <h2>Laundry</h2>
+    <p class="muted">${laundry?`${laundry} piece${laundry===1?' is':'s are'} in the laundry.`:'Nothing in the laundry.'} Mark pieces from the Closet tab.</p>
+    ${laundry?`<div class="row"><button class="btn" id="clean">Mark everything clean</button></div>`:''}
+    <h2>Backup</h2>
+    <p class="muted">Your photos and tags are stored only on this phone, never online. If you delete the app from your home screen, iPhone can erase them, so save a backup to Files or iCloud now and then. Last backup: ${last}.</p>
+    <div class="row"><button class="btn primary" id="exp">Save backup</button><button class="btn" id="imp">Restore</button></div>
+    <p class="small muted" id="storeInfo" style="margin-top:14px"></p>`;
+  navigator.storage?.estimate?.().then(s=>{const n=$('#storeInfo');if(n)n.textContent=`${items.length} pieces using about ${(s.usage/1048576).toFixed(1)} MB.`}).catch(()=>{});
+}
+let cityT;
+$('#settings').addEventListener('input',e=>{
+  if(e.target.id==='city'){clearTimeout(cityT);const q=e.target.value.trim();if(q.length<2){$('#cityRes').innerHTML='';return}
+    cityT=setTimeout(async()=>{try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`);const j=await r.json();
+      $('#cityRes').innerHTML=(j.results||[]).map(c=>`<button data-lat="${c.latitude}" data-lon="${c.longitude}" data-name="${esc(c.name)}">${esc(c.name)}<span class="muted">, ${esc([c.admin1,c.country_code].filter(Boolean).join(', '))}</span></button>`).join('')||'<p class="muted">No matches. Try another spelling.</p>'}
+      catch{$('#cityRes').innerHTML='<p class="muted">City search needs an internet connection.</p>'}},350)}
+});
+$('#settings').addEventListener('change',e=>{if(e.target.id==='avoid'){settings.avoidDays=+e.target.value;saveSettings();current=null;renderToday()}});
+$('#settings').addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.lat){setLocation(+b.dataset.lat,+b.dataset.lon,b.dataset.name);return}
+  if(b.id==='geo'){
+    if(!navigator.geolocation){toast('Location is not available here. Search for your city instead.');return}
+    toast('Finding you');
+    navigator.geolocation.getCurrentPosition(p=>setLocation(p.coords.latitude,p.coords.longitude,'your location'),
+      ()=>toast('Location was blocked. Search for your city instead.'),{timeout:10000,maximumAge:3600e3});
+  }
+  if(b.id==='clean'){for(const i of items.filter(i=>i.inLaundry)){i.inLaundry=false;await db.put('items',i)}afterChange();toast('Everything marked clean')}
+  if(b.id==='exp')exportBackup();
+  if(b.id==='imp')$('#importer').click();
+});
+function setLocation(lat,lon,name){
+  settings.location={lat:+lat.toFixed(3),lon:+lon.toFixed(3),name};settings.manual=null;saveSettings();
+  renderSettings();toast(`Weather set to ${name}`);current=null;refreshWeather(true);
+}
+async function exportBackup(){
+  const history=await db.all('history');
+  const data={app:'closet',version:1,exportedAt:new Date().toISOString(),items,history,settings:{avoidDays:settings.avoidDays,location:settings.location}};
+  const name=`closet-backup-${new Date().toISOString().slice(0,10)}.json`;
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const file=new File([blob],name,{type:'application/json'});
+  let done=false;
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:'Closet backup'});done=true}catch(err){if(err.name==='AbortError')return}
+  }
+  if(!done){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),8000)}
+  settings.lastBackup=Date.now();saveSettings();renderSettings();renderToday();toast('Backup saved');
+}
+$('#importer').addEventListener('change',async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(data.app!=='closet'||!Array.isArray(data.items))throw new Error();
+    for(const i of data.items)if(i&&i.id&&i.photo&&CATS[i.category])await db.put('items',i);
+    for(const h of data.history||[])if(h&&h.id)await db.put('history',h);
+    if(data.settings?.location&&!settings.location){settings.location=data.settings.location;saveSettings();refreshWeather(true)}
+    items=await db.all('items');current=null;afterChange();toast(`Restored ${data.items.length} pieces`);
+  }catch{toast('That file is not a Closet backup.')}
+});
+
+/* ---------- start ---------- */
+(async()=>{
+  try{items=await db.all('items')}catch{toast('Storage is blocked. Turn off Private Browsing and reopen.')}
+  try{navigator.storage?.persist?.()}catch{}
+  renderToday();renderCloset();renderSettings();
+  refreshWeather(false);
+  if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
