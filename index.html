@@ -151,6 +151,36 @@ nav.tabs svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1
 
 .toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:15px;z-index:60;max-width:calc(100% - 32px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
 [hidden]{display:none!important}
+
+/* ask-first prompts */
+.ask{background:var(--paper);border-radius:14px;padding:12px 14px;margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ask .q{flex:1 1 180px;min-width:0}
+.ask .q b{display:block;font-weight:600}
+.ask .q span{font-size:13px;color:var(--ink-2)}
+.ask .acts{display:flex;gap:8px}
+.ask .btn{min-height:38px;padding:0 14px;font-size:14px}
+
+/* music button */
+.music{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);background:var(--paper);font-size:14px;font-weight:600}
+.music[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.music svg{width:16px;height:16px}
+
+/* daily welcome */
+.welcome{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;color:#F7E7C6;
+  background:radial-gradient(120% 90% at 50% 20%,#3B2A55 0%,#1A1630 55%,#0E0D1C 100%);transition:opacity .6s ease}
+.welcome.out{opacity:0;pointer-events:none}
+.welcome .line{font:italic 600 clamp(30px,9vw,46px)/1.12 var(--serif);letter-spacing:.005em;max-width:12ch}
+.welcome .rule{width:64px;height:2px;background:linear-gradient(90deg,transparent,#E5B96B,transparent)}
+.welcome .sub{font-size:14px;opacity:.75;color:#EADBC0}
+.welcome button.play{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(229,185,107,.6);background:rgba(229,185,107,.12);color:#F7E7C6;font:600 15px var(--sans)}
+.welcome button.play svg{width:16px;height:16px}
+@media (prefers-reduced-motion:no-preference){
+  .welcome .line{animation:glide 1.1s cubic-bezier(.2,.7,.2,1) both}
+  .welcome .rule{animation:grow 1.2s .3s ease-out both}
+  @keyframes glide{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+}
+.photo-note{font-size:13px;color:var(--ink-2);margin:8px 0 0}
 </style>
 </head>
 <body>
@@ -206,11 +236,11 @@ const db=(()=>{
   return{all:s=>tx(s,'readonly',st=>st.getAll()),put:(s,v)=>tx(s,'readwrite',st=>st.put(v)),del:(s,k)=>tx(s,'readwrite',st=>st.delete(k))};
 })();
 const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
-let settings=Object.assign({location:null,avoidDays:3,manual:null,lastBackup:null,autoTag:false},ls.get('closet.settings',{}));
+let settings=Object.assign({location:null,avoidDays:3,manual:null,lastBackup:null,autoTag:false,cleanPhotos:true},ls.get('closet.settings',{}));
 const saveSettings=()=>ls.set('closet.settings',settings);
 
 /* ---------- state ---------- */
-let items=[],wx=null,wxError=null,day=0,style='any',current=null,currentKey='',shown=new Set(),closetFilter='all';
+let extras={outer:null,acc:null},items=[],wx=null,wxError=null,day=0,style='any',current=null,currentKey='',shown=new Set(),closetFilter='all';
 const getItem=id=>items.find(i=>i.id===id);
 const avail=()=>items.filter(i=>!i.inLaundry);
 
@@ -257,6 +287,8 @@ function extractColors(src){
   const S=48,c=document.createElement('canvas');c.width=S;c.height=S;
   const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0,S,S);
   const d=x.getImageData(0,0,S,S).data,px=(i,j)=>{const k=(j*S+i)*4;return[d[k],d[k+1],d[k+2]]};
+  let clear=0;for(let k=3;k<d.length;k+=4)if(d[k]<200)clear++;
+  const cutout=clear>S*S*0.05,opaque=(i,j)=>d[(j*S+i)*4+3]>=200;
   const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
   const border=[];for(let i=0;i<S;i++)for(let j=0;j<S;j++)if(i<3||j<3||i>=S-3||j>=S-3)border.push(px(i,j));
   const mean=[0,1,2].map(k=>border.reduce((a,p)=>a+p[k],0)/border.length);
@@ -264,11 +296,13 @@ function extractColors(src){
   const pts=[],wts=[],all=[],allw=[];
   for(let j=0;j<S;j++)for(let i=0;i<S;i++){
     const dx=(i+.5-S/2)/(S/2),dy=(j+.5-S/2)/(S/2),r2=dx*dx+dy*dy;if(r2>0.9)continue;
+    if(cutout&&!opaque(i,j))continue;
     const p=px(i,j),w=1-0.6*r2;all.push(p);allw.push(w);
-    if(spread<38&&dist(p,mean)<48)continue; // looks like plain background
+    if(!cutout&&spread<38&&dist(p,mean)<48)continue; // looks like plain background
     pts.push(p);wts.push(w);
   }
   let P=pts,W=wts;if(P.length<60){P=all;W=allw}
+  if(!P.length)return[];
   const cent=[P[Math.floor(P.length/2)].slice()];
   while(cent.length<4){let bi=0,bd=-1;P.forEach((p,i)=>{const m=Math.min(...cent.map(q=>dist(p,q)));if(m>bd){bd=m;bi=i}});if(bd<14)break;cent.push(P[bi].slice())}
   let wk=cent.map(()=>0);
@@ -281,6 +315,82 @@ function extractColors(src){
   const cl=cent.map((q,k)=>({c:q,w:wk[k]/tot})).filter(o=>o.w>=0.08).sort((a,b)=>b.w-a.w);
   const res=[];cl.forEach(o=>{const m=res.find(r=>dist(r.c,o.c)<34);if(m)m.w+=o.w;else res.push(o)});
   return res.slice(0,3).map(o=>rgbToHex(o.c));
+}
+
+/* ---------- photo cleanup: remove a plain background, studio backdrop, auto levels ---------- */
+function autoLevels(ctx,w,h,maskFn){
+  const id=ctx.getImageData(0,0,w,h),d=id.data,hist=new Uint32Array(256);let n=0;
+  for(let i=0;i<d.length;i+=4){if(d[i+3]<200||(maskFn&&!maskFn(i)))continue;hist[(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114)|0]++;n++}
+  if(n<50)return;
+  let lo=0,hi=255,acc=0;for(;lo<255;lo++){acc+=hist[lo];if(acc>n*0.01)break}
+  acc=0;for(;hi>0;hi--){acc+=hist[hi];if(acc>n*0.01)break}
+  lo=Math.min(lo,10);hi=Math.max(hi,215);const k=Math.min(1.25,255/Math.max(40,hi-lo)),sat=1.06;
+  for(let i=0;i<d.length;i+=4){
+    if(d[i+3]===0)continue;
+    let r=(d[i]-lo)*k,g=(d[i+1]-lo)*k,b=(d[i+2]-lo)*k;const y=0.299*r+0.587*g+0.114*b;
+    d[i]=Math.max(0,Math.min(255,y+(r-y)*sat));d[i+1]=Math.max(0,Math.min(255,y+(g-y)*sat));d[i+2]=Math.max(0,Math.min(255,y+(b-y)*sat));
+  }
+  ctx.putImageData(id,0,0);
+}
+// Returns {out: studio-style canvas, object: transparent cutout} or null when the background is too busy.
+function cleanPhoto(src){
+  const W=src.width,H=src.height,S=Math.min(1,320/Math.max(W,H)),w=Math.max(8,Math.round(W*S)),h=Math.max(8,Math.round(H*S));
+  const sc=document.createElement('canvas');sc.width=w;sc.height=h;const sx=sc.getContext('2d',{willReadFrequently:true});sx.drawImage(src,0,0,w,h);
+  const d=sx.getImageData(0,0,w,h).data,N=w*h;
+  // compare colors mostly by hue and chroma, so floor shadows still count as background
+  const Y=new Float32Array(N),U=new Float32Array(N),V=new Float32Array(N);
+  for(let i=0,j=0;i<N;i++,j+=4){const r=d[j],g=d[j+1],b=d[j+2];Y[i]=0.299*r+0.587*g+0.114*b;U[i]=(b-Y[i])*0.565;V[i]=(r-Y[i])*0.713}
+  const dist=(i,y,u,v)=>Math.sqrt(((Y[i]-y)*0.3)**2+(U[i]-u)**2+(V[i]-v)**2);
+  const border=[];for(let x=0;x<w;x++){border.push(x,(h-1)*w+x)}for(let y=1;y<h-1;y++){border.push(y*w,y*w+w-1)}
+  // up to three background colors from the border
+  const cent=[];
+  for(const i of border){let m=cent.find(c=>dist(i,c.y,c.u,c.v)<24);if(m){m.n++;m.y+=(Y[i]-m.y)/m.n;m.u+=(U[i]-m.u)/m.n;m.v+=(V[i]-m.v)/m.n}else cent.push({y:Y[i],u:U[i],v:V[i],n:1})}
+  cent.sort((a,b)=>b.n-a.n);
+  const bg=cent.slice(0,4).filter(c=>c.n>border.length*0.04);
+  const coverage=bg.reduce((a,c)=>a+c.n,0)/border.length;
+  if(!bg.length||coverage<0.6)return null; // busy or cluttered background
+  const T=26,TL=10,bgd=i=>{let m=1e9;for(const c of bg){const v=dist(i,c.y,c.u,c.v);if(v<m)m=v}return m},near=i=>bgd(i)<T;
+  const isBg=new Uint8Array(N),q=new Int32Array(N);let qh=0,qt=0;
+  for(const i of border)if(!isBg[i]&&near(i)){isBg[i]=1;q[qt++]=i}
+  while(qh<qt){const i=q[qh++],x=i%w,y=(i/w)|0;
+    for(const k of [x>0?i-1:-1,x<w-1?i+1:-1,y>0?i-w:-1,y<h-1?i+w:-1]){
+      if(k<0||isBg[k])continue;
+      const bd=bgd(k);
+      // follow gentle shading (wrinkles, shadows) but never far from the background color
+      if(bd<T||(bd<44&&dist(k,Y[i],U[i],V[i])<TL)){isBg[k]=1;q[qt++]=k}
+    }}
+  // keep the main garment, drop specks
+  const lab=new Int32Array(N).fill(-1),sizes=[];
+  for(let i=0;i<N;i++){if(isBg[i]||lab[i]>=0)continue;const id=sizes.length;let n=0;qh=qt=0;q[qt++]=i;lab[i]=id;
+    while(qh<qt){const j=q[qh++];n++;const x=j%w,y=(j/w)|0;for(const k of [x>0?j-1:-1,x<w-1?j+1:-1,y>0?j-w:-1,y<h-1?j+w:-1]){if(k>=0&&!isBg[k]&&lab[k]<0){lab[k]=id;q[qt++]=k}}}
+    sizes.push(n)}
+  if(!sizes.length)return null;
+  const big=sizes.reduce((m,n)=>n>m?n:m,0),keep=sizes.map(n=>n>=big*0.08);
+  let fg=0,minX=w,minY=h,maxX=0,maxY=0;
+  const m=sx.createImageData(w,h);
+  for(let i=0;i<N;i++){if(lab[i]>=0&&keep[lab[i]]){fg++;const x=i%w,y=(i/w)|0;if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;m.data[i*4+3]=255}}
+  const frac=fg/N;if(frac<0.04||frac>0.9)return null;
+  // soft-edged cutout at full size
+  const mc=document.createElement('canvas');mc.width=w;mc.height=h;mc.getContext('2d').putImageData(m,0,0);
+  const obj=document.createElement('canvas');obj.width=W;obj.height=H;const ox=obj.getContext('2d',{willReadFrequently:true});
+  ox.drawImage(src,0,0);ox.globalCompositeOperation='destination-in';ox.imageSmoothingEnabled=true;ox.drawImage(mc,0,0,W,H);ox.globalCompositeOperation='source-over';
+  const raw=document.createElement('canvas');raw.width=W;raw.height=H;raw.getContext('2d').drawImage(obj,0,0); // true colors, before brightening
+  autoLevels(ox,W,H);
+  // studio backdrop with a soft floor shadow
+  const O=800,out=document.createElement('canvas');out.width=O;out.height=O;const c=out.getContext('2d');
+  const g=c.createRadialGradient(O*0.5,O*0.38,O*0.05,O*0.5,O*0.5,O*0.75);g.addColorStop(0,'#FAFAF8');g.addColorStop(1,'#E4E6EA');c.fillStyle=g;c.fillRect(0,0,O,O);
+  const bx=minX/S,by=minY/S,bw=(maxX-minX+1)/S,bh=(maxY-minY+1)/S,fit=Math.min(O*0.8/bw,O*0.8/bh),dw=bw*fit,dh=bh*fit,dx=(O-dw)/2,dy=(O-dh)/2-O*0.02;
+  for(let k=8;k>0;k--){c.fillStyle=`rgba(20,24,34,${0.018})`;c.beginPath();c.ellipse(O/2,dy+dh+O*0.012,dw*0.42+k*7,O*0.018+k*2.2,0,0,Math.PI*2);c.fill()}
+  c.shadowColor='rgba(20,24,34,0.18)';c.shadowBlur=18;c.shadowOffsetY=6;
+  c.drawImage(obj,bx,by,bw,bh,dx,dy,dw,dh);
+  return{out,object:raw};
+}
+function enhanceOnly(src){
+  const c=document.createElement('canvas');c.width=src.width;c.height=src.height;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(src,0,0);autoLevels(x,c.width,c.height);return c;
+}
+async function canvasFromDataURL(url){
+  const img=new Image();img.src=url;await img.decode();
+  const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;c.getContext('2d').drawImage(img,0,0);return c;
 }
 
 /* ---------- photos ---------- */
@@ -376,8 +486,11 @@ async function processFile(file){
   const max=720,sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
   const c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
   c.getContext('2d').drawImage(img,0,0,c.width,c.height);done();
-  const colors=extractColors(c);const guess=await autoTag(c)||{};
-  return Object.assign({id:uid(),photo:c.toDataURL('image/jpeg',0.8),colors,primary:colors[0]||'#888888',name:'',category:'top',
+  let cleaned=null;if(settings.cleanPhotos!==false){try{cleaned=cleanPhoto(c)}catch(e){cleaned=null}}
+  const shown=cleaned?cleaned.out:enhanceOnly(c);
+  const colors=extractColors(cleaned?cleaned.object:c);const guess=await autoTag(shown)||{};
+  return Object.assign({id:uid(),photo:shown.toDataURL('image/jpeg',0.85),original:c.toDataURL('image/jpeg',0.8),cleaned:!!cleaned,cleanFailed:settings.cleanPhotos!==false&&!cleaned,
+    colors,primary:colors[0]||'#888888',name:'',category:'top',
     seasons:[...SEASONS],styles:['casual'],warmth:2,waterproof:false,inLaundry:false,lastWorn:null,wornCount:0,added:Date.now()},guess);
 }
 const NOUN={top:'top',bottom:'pants',outer:'jacket',shoes:'shoes',accessory:'accessory'};
@@ -414,6 +527,15 @@ function buildCtx(){
   else{const t={summer:1,spring:1.8,fall:2,winter:2.8}[ctx.season];ctx.warmthTarget=t;ctx.outerTarget=Math.round(t);ctx.needOuter=ctx.season!=='summer';ctx.rainy=false}
   return ctx;
 }
+// Style filters are strict: a piece shows up in Formal only if it is tagged Formal,
+// and some kinds never count for dressier styles even if tagged.
+const NOT_FOR={
+  formal:/^(t-shirt|tank top|hoodie|sweatshirt|polo|flannel|jeans|sweatpants|shorts|sneakers|sandals|cap|beanie|bag|denim jacket|puffer|vest)$/,
+  work:/^(tank top|hoodie|sweatshirt|sweatpants|shorts|sandals|cap|beanie)$/,
+  'going out':/^(sweatpants)$/,
+  athletic:/^(button-up shirt|blazer|dress shoes|coat|chinos)$/
+};
+const styleOK=(p,st)=>st==='any'||(!(p.kind&&NOT_FOR[st]&&NOT_FOR[st].test(p.kind))&&(p.styles||[]).includes(st));
 function itemFit(p,ctx){
   let s=0;
   if(p.seasons?.length&&!p.seasons.includes(ctx.season))s-=1.2;
@@ -435,16 +557,17 @@ function scoreOutfit(ps,ctx){
 }
 const sortSlots=ps=>[...ps].sort((a,b)=>CAT_ORDER.indexOf(a.category)-CAT_ORDER.indexOf(b.category));
 function generate(ctx){
-  const a=avail(),by=c=>a.filter(i=>i.category===c);
+  const a=avail().filter(i=>styleOK(i,ctx.style)),by=c=>a.filter(i=>i.category===c);
   const tops=by('top'),bottoms=by('bottom'),outers=by('outer'),shoes=by('shoes'),accs=by('accessory');
+  const missing=[!tops.length&&'top',!bottoms.length&&'bottom'].filter(Boolean);
+  if(missing.length)return{ids:[],missing};
   const bases=[];tops.forEach(t=>bottoms.forEach(b=>bases.push([t,b])));
-  if(!bases.length)return null;
   const best=(base,pool,noise)=>{let b=null,bs=-1e9;for(const x of pool){const s=scoreOutfit([...base,x],ctx)+Math.random()*noise;if(s>bs){bs=s;b=x}}return b};
   const full=bases.map(b=>({b,s:scoreOutfit(b,ctx)+Math.random()*0.9})).sort((x,y)=>y.s-x.s).slice(0,24).map(({b})=>{
     const ps=[...b];
-    if(ctx.needOuter&&outers.length)ps.push(best(ps,outers,0.5));
     if(shoes.length)ps.push(best(ps,shoes,0.5));
-    if(accs.length){const acc=best(ps,accs,0.3);if(scoreOutfit([...ps,acc],ctx)>=scoreOutfit(ps,ctx)-0.15)ps.push(acc)}
+    if(extras.outer===true&&outers.length)ps.push(best(ps,outers,0.5));
+    if(extras.acc===true&&accs.length)ps.push(best(ps,accs,0.3));
     return{ps,s:scoreOutfit(ps,ctx)+Math.random()*0.6};
   }).sort((x,y)=>y.s-x.s);
   const keyOf=ps=>ps.filter(p=>['top','bottom','onepiece'].includes(p.category)).map(p=>p.id).sort().join('+');
@@ -472,13 +595,13 @@ function explain(ps,ctx){
   if(w){
     if(outer&&ctx.rainy&&outer.waterproof)out.push(`${w.rain}% chance of rain, so the waterproof ${itemName(outer).toLowerCase()}.`);
     else if(outer)out.push(`High of ${w.high}°, low of ${w.low}°, so a layer on top.`);
+    else if(ctx.needOuter)out.push(`High of ${w.high}°${ctx.rainy?' with rain likely':''}, so a jacket is a good idea.`);
     else if(w.high>=78)out.push(`Warm day at ${w.high}°, so it stays light.`);
     else out.push(`High of ${w.high}°, no jacket needed.`);
-    if(ctx.rainy&&!(outer&&outer.waterproof))out.push(`Rain is likely. Tag a jacket as waterproof so it gets picked on days like this.`);
+    if(ctx.rainy&&outer&&!outer.waterproof)out.push(`Rain is likely. Tag a jacket as waterproof so it gets picked on days like this.`);
   }else out.push(`Picked for ${ctx.season}. Set your location in Settings to match the weather.`);
   if(ctx.style!=='any'){
-    const all=ps.every(p=>!p.styles?.length||p.styles.includes(ctx.style));
-    out.push(all?`Every piece fits ${ctx.style}.`:`Not every piece is tagged ${ctx.style}, so this is the closest match.`);
+    out.push(`Every piece is tagged ${ctx.style}.`);
   }
   return out;
 }
@@ -526,20 +649,36 @@ function renderToday(){
     body=`<div class="empty"><h2>Almost there</h2><p class="muted">Outfits need at least one top and one bottom. ${items.length-a.length?'Some pieces are in the laundry.':''}</p><div class="row"><button class="btn primary" data-action="add">Add clothes</button></div></div>`;
   }else{
     const key=`${style}|${day}|${w?w.high+'/'+w.rain:''}`;
-    if(!current||key!==currentKey||current.ids.some(id=>!getItem(id)||getItem(id).inLaundry)){if(key!==currentKey)shown.clear();currentKey=key;current=generate(ctx)}
+    if(!current||key!==currentKey||current.ids.some(id=>!getItem(id)||getItem(id).inLaundry)){if(key!==currentKey){shown.clear();extras={outer:null,acc:null}}currentKey=key;current=generate(ctx)}
     const ps=current.ids.map(getItem).filter(Boolean);
+    if(current.missing){
+      const what=current.missing.map(c=>PLURAL[c].toLowerCase()).join(' or ');
+      body=`<div class="empty"><h2>No ${esc(what)} tagged ${esc(style)} yet</h2><p class="muted">Open a piece in the Closet tab and tap ${esc(cap(style))} under Style, so it can be picked for ${esc(style)} outfits.</p><div class="row"><button class="btn" data-style="any">Show any style</button><button class="btn primary" data-tab="closet">Open closet</button></div></div>`;
+    }else{
+    const pool=c=>avail().filter(i=>i.category===c&&styleOK(i,style));
+    const asks=[];
+    if(extras.outer===null&&pool('outer').length){
+      const hint=w?(ctx.needOuter?`Recommended: high of ${w.high}°${ctx.rainy?' with rain likely':''}`:`Probably not needed, high of ${w.high}°`):(ctx.needOuter?`Recommended for ${ctx.season}`:'Your call');
+      asks.push(`<div class="ask"><div class="q"><b>Add a jacket?</b><span>${esc(hint)}</span></div><div class="acts"><button class="btn" data-extra="outer" data-v="no">No thanks</button><button class="btn primary" data-extra="outer" data-v="yes">Add one</button></div></div>`);
+    }
+    if(extras.acc===null&&pool('accessory').length){
+      asks.push(`<div class="ask"><div class="q"><b>Add an accessory?</b><span>A hat, watch or other finishing piece</span></div><div class="acts"><button class="btn" data-extra="acc" data-v="no">Skip</button><button class="btn primary" data-extra="acc" data-v="yes">Add one</button></div></div>`);
+    }
     const weights={top:3,bottom:3,outer:3,shoes:1.5,accessory:1};
     const stripes=ps.flatMap(p=>{const cs=(p.colors?.length?p.colors:[p.primary]);const main=[p.primary,...cs.filter(c=>c!==p.primary)].slice(0,2);const wt=weights[p.category];return main.map((c,i)=>`<span style="background:${c};flex:${i?wt*0.35:wt}"></span>`)}).join('');
     const present=new Set(ps.map(p=>p.category));
-    const addable=['outer','shoes','accessory'].filter(c=>!present.has(c)&&has(c));
+    const addable=['outer','shoes','accessory'].filter(c=>!present.has(c)&&pool(c).length&&!(c==='outer'&&extras.outer===null)&&!(c==='accessory'&&extras.acc===null));
     body=`<div class="label"><div class="weave fresh" id="weave">${stripes}</div><div class="label-text">${esc(dateStr)}</div></div>
       <div class="pieces">${ps.map(p=>`<div class="piece"><img src="${p.photo}" alt=""><div class="meta"><div class="name">${esc(itemName(p))}</div><div class="sub">${CATS[p.category]}, ${describe(p.primary).name}</div></div><button class="swap" data-swap="${p.category}">Swap</button></div>`).join('')}</div>
+      ${asks.join('')}
       ${addable.length?`<div class="add-slot">${addable.map(c=>`<button class="chip" data-addslot="${c}">Add ${CATS[c].toLowerCase()}</button>`).join('')}</div>`:''}
       <ul class="why">${explain(ps,ctx).map(t=>`<li>${esc(t)}</li>`).join('')}</ul>
       <div class="row"><button class="btn" id="another">Another outfit</button><button class="btn primary" id="wear">Mark as worn</button></div>`;
+    }
   }
   const stale=items.length>=5&&(!settings.lastBackup||Date.now()-settings.lastBackup>30*864e5);
-  el.innerHTML=`<h1>${day?'Tomorrow':'Today'}</h1><p class="muted">${esc(dateStr)}</p>
+  el.innerHTML=`<div class="head"><div><h1>${day?'Tomorrow':'Today'}</h1><p class="muted">${esc(dateStr)}</p></div>
+    <button class="music" id="musicBtn" aria-pressed="${Groove.playing()}" aria-label="R&B music">${NOTE_ICON}${Groove.playing()?'Playing':'R&amp;B'}</button></div>
     <div class="seg" style="margin-top:12px"><button data-day="0" aria-pressed="${day===0}">Today</button><button data-day="1" aria-pressed="${day===1}">Tomorrow</button></div>
     ${wxHtml}
     <div class="chips" style="margin-top:8px">${chipBtns(['any',...STYLES],[style],'style',v=>v==='any'?'Any style':cap(v))}</div>
@@ -558,6 +697,15 @@ document.addEventListener('click',e=>{
   if(t.id==='wear'){markWorn();return}
   if(t.id==='wxBtn'){openWeather();return}
   if(t.dataset.swap){openSwap(t.dataset.swap,false);return}
+  if(t.dataset.extra){
+    const k=t.dataset.extra,yes=t.dataset.v==='yes';extras[k]=yes;
+    if(yes){const cat=k==='outer'?'outer':'accessory',ctx=buildCtx(),ps=current.ids.map(getItem).filter(Boolean);
+      const pool=avail().filter(i=>i.category===cat&&styleOK(i,ctx.style));let b=null,bs=-1e9;
+      for(const x of pool){const s=scoreOutfit([...ps,x],ctx);if(s>bs){bs=s;b=x}}
+      if(b)current={ids:sortSlots([...ps,b]).map(p=>p.id)};}
+    renderToday();return;
+  }
+  if(t.id==='musicBtn'){Groove.toggle();return}
   if(t.dataset.addslot){openSwap(t.dataset.addslot,true);return}
 });
 async function markWorn(){
@@ -569,10 +717,10 @@ async function markWorn(){
 function openSwap(cat,adding){
   const ctx=buildCtx(),ps=current.ids.map(getItem).filter(Boolean),cur=ps.find(p=>p.category===cat);
   const rest=ps.filter(p=>p!==cur),base=scoreOutfit(ps,ctx);
-  const alts=avail().filter(i=>i.category===cat&&i!==cur).map(i=>({i,s:scoreOutfit([...rest,i],ctx)})).sort((a,b)=>b.s-a.s);
+  const alts=avail().filter(i=>i.category===cat&&i!==cur&&styleOK(i,ctx.style)).map(i=>({i,s:scoreOutfit([...rest,i],ctx)})).sort((a,b)=>b.s-a.s);
   const word=s=>s>=base-0.3?['great','Great match']:s>=base-1.2?['','Good match']:['','Bolder choice'];
   const html=`<h2>${adding?'Add':'Swap'} ${CATS[cat].toLowerCase()}</h2>
-    ${alts.length?alts.map(({i,s})=>{const[c,w]=word(s);return`<button class="alt" data-pick="${i.id}"><img src="${i.photo}" alt=""><span class="meta"><span class="name" style="display:block;font-weight:600">${esc(itemName(i))}</span><span class="fit ${c}">${w}</span></span></button>`}).join(''):`<p class="muted">No other clean ${PLURAL[cat].toLowerCase()} to choose from.</p>`}
+    ${alts.length?alts.map(({i,s})=>{const[c,w]=word(s);return`<button class="alt" data-pick="${i.id}"><img src="${i.photo}" alt=""><span class="meta"><span class="name" style="display:block;font-weight:600">${esc(itemName(i))}</span><span class="fit ${c}">${w}</span></span></button>`}).join(''):`<p class="muted">No other clean ${PLURAL[cat].toLowerCase()}${ctx.style!=='any'?` tagged ${esc(ctx.style)}`:''} to choose from.</p>`}
     ${!adding&&['outer','shoes','accessory'].includes(cat)?`<button class="btn block" data-remove="1" style="margin-top:6px">Remove from outfit</button>`:''}`;
   sheet(html,(sh,close)=>sh.addEventListener('click',e=>{
     const b=e.target.closest('button');if(!b)return;
@@ -642,7 +790,9 @@ function openEditor(queue,idx,isNew,carry){
   const total=queue.length,pos=total>1?` ${idx+1} of ${total}`:'';
   const worn=!isNew&&it.wornCount?`Worn ${it.wornCount} time${it.wornCount===1?'':'s'}, last on ${new Date(it.lastWorn).toLocaleDateString(undefined,{month:'short',day:'numeric'})}.`:'';
   const html=`<h2>${isNew?'New piece'+pos:'Edit piece'}</h2>
-    <img class="photo" src="${it.photo}" alt="">
+    <img class="photo" id="ph" src="${it.photo}" alt="">
+    ${it.original?`<div class="card" style="margin-top:10px"><div class="toggle"><span>Clean background<br><span class="small muted">Studio backdrop and brighter colors</span></span><label class="switch"><input type="checkbox" id="cl" ${it.cleaned?'checked':''} aria-label="Clean background"><span></span></label></div></div>`:''}
+    <p class="photo-note" id="phNote" ${it.cleanFailed&&!it.cleaned?'':'hidden'}>The background was too busy to remove, so the photo was only brightened. A plain floor, bed or wall works best.</p>
     ${isNew&&it.auto?`<p class="hint">Tags were guessed from the photo${it.unsure?', but the type is a low-confidence guess':''}. Check them before saving.</p>`:''}
     <div class="field"><span class="lbl">Main color</span>
       <div class="swatches" id="sws"></div>
@@ -668,6 +818,15 @@ function openEditor(queue,idx,isNew,carry){
       $('#nm',sh).placeholder=itemName({...it,name:''});
     };
     drawSw();
+    sh.addEventListener('change',async e=>{
+      if(e.target.id!=='cl')return;
+      const on=e.target.checked;
+      if(!on){it.photo=it.original;it.cleaned=false;$('#ph',sh).src=it.photo;$('#phNote',sh).hidden=true;return}
+      const src=await canvasFromDataURL(it.original);let r=null;try{r=cleanPhoto(src)}catch(_){}
+      if(r){it.photo=r.out.toDataURL('image/jpeg',0.85);it.cleaned=true;$('#phNote',sh).hidden=true}
+      else{it.photo=enhanceOnly(src).toDataURL('image/jpeg',0.85);it.cleaned=false;e.target.checked=false;$('#phNote',sh).hidden=false}
+      $('#ph',sh).src=it.photo;
+    });
     sh.addEventListener('input',e=>{if(e.target.id==='cp'){it.primary=e.target.value;if(!it.colors.includes(it.primary))it.colors=[...it.colors.slice(0,3),it.primary];drawSw()}});
     const single=(box,key,num)=>$$('button',box).forEach(b=>b.addEventListener('click',()=>{if(key==='category'&&it.category!==b.dataset.v)delete it.kind;it[key]=num?+b.dataset.v:b.dataset.v;$$('button',box).forEach(x=>x.setAttribute('aria-pressed',x===b));$('#nm',sh).placeholder=itemName({...it,name:''})}));
     const multi=(box,key)=>$$('button',box).forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.v,on=it[key].includes(v);it[key]=on?it[key].filter(x=>x!==v):[...it[key],v];b.setAttribute('aria-pressed',!on)}));
@@ -678,7 +837,7 @@ function openEditor(queue,idx,isNew,carry){
       if(b.id==='save'){
         it.name=$('#nm',sh).value.trim();it.waterproof=$('#wp',sh).checked;if($('#ld',sh))it.inLaundry=$('#ld',sh).checked;
         if(!it.seasons.length)it.seasons=[...SEASONS];
-        delete it.auto;delete it.unsure;
+        delete it.auto;delete it.unsure;delete it.cleanFailed;
         try{await db.put('items',it)}catch(err){toast('Could not save. Your phone may be out of space.');return}
         const k=items.findIndex(x=>x.id===it.id);if(k>=0)items[k]=it;else items.push(it);
         close();afterChange();
@@ -704,6 +863,9 @@ function renderSettings(){
     <p class="muted">${settings.location?`Currently ${esc(settings.location.name||'your location')}.`:'Not set. Outfits fall back to the season.'}</p>
     <div class="row"><button class="btn" id="geo">Use my location</button></div>
     <div class="field"><label class="lbl" for="city">Or search for a city</label><input type="search" id="city" placeholder="Minneapolis" enterkeyhint="search" autocomplete="off"><div class="results" id="cityRes"></div></div>
+    <h2>Photos</h2>
+    <div class="card"><div class="toggle"><span>Clean up new photos<br><span class="small muted">Removes plain backgrounds, adds a studio backdrop</span></span><label class="switch"><input type="checkbox" id="clOn" ${settings.cleanPhotos!==false?'checked':''} aria-label="Clean up new photos"><span></span></label></div></div>
+    ${items.some(i=>!i.original)?`<div class="row"><button class="btn" id="cleanAll">Clean up ${items.filter(i=>!i.original).length} existing photos</button></div>`:''}
     <h2>Auto-tagging</h2>
     <div class="card"><div class="toggle"><span>Guess tags from photos<br><span class="small muted">Type, warmth, season and style</span></span><label class="switch"><input type="checkbox" id="aiOn" ${settings.autoTag?'checked':''} aria-label="Guess tags from photos"><span></span></label></div></div>
     <p class="small muted" style="margin-top:8px">The first time, this downloads a 90 MB image model, so use Wi-Fi. After that it works offline, and your photos never leave your phone.</p>
@@ -728,7 +890,8 @@ $('#settings').addEventListener('input',e=>{
       $('#cityRes').innerHTML=(j.results||[]).map(c=>`<button data-lat="${c.latitude}" data-lon="${c.longitude}" data-name="${esc(c.name)}">${esc(c.name)}<span class="muted">, ${esc([c.admin1,c.country_code].filter(Boolean).join(', '))}</span></button>`).join('')||'<p class="muted">No matches. Try another spelling.</p>'}
       catch{$('#cityRes').innerHTML='<p class="muted">City search needs an internet connection.</p>'}},350)}
 });
-$('#settings').addEventListener('change',e=>{if(e.target.id==='aiOn'){settings.autoTag=e.target.checked;saveSettings();if(settings.autoTag)loadAI().catch(()=>{});else renderAIStatus()}
+$('#settings').addEventListener('change',e=>{if(e.target.id==='clOn'){settings.cleanPhotos=e.target.checked;saveSettings()}
+  if(e.target.id==='aiOn'){settings.autoTag=e.target.checked;saveSettings();if(settings.autoTag)loadAI().catch(()=>{});else renderAIStatus()}
   if(e.target.id==='avoid'){settings.avoidDays=+e.target.value;saveSettings();current=null;renderToday()}});
 $('#settings').addEventListener('click',async e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -738,6 +901,17 @@ $('#settings').addEventListener('click',async e=>{
     toast('Finding you');
     navigator.geolocation.getCurrentPosition(p=>setLocation(p.coords.latitude,p.coords.longitude,'your location'),
       ()=>toast('Location was blocked. Search for your city instead.'),{timeout:10000,maximumAge:3600e3});
+  }
+  if(b.id==='cleanAll'){
+    const todo=items.filter(i=>!i.original);let ok=0,n=0;b.disabled=true;
+    for(const it of todo){
+      n++;toast(`Cleaning photo ${n} of ${todo.length}`);
+      try{const src=await canvasFromDataURL(it.photo);const r=cleanPhoto(src);it.original=it.photo;
+        if(r){it.photo=r.out.toDataURL('image/jpeg',0.85);it.cleaned=true;ok++;const cs=extractColors(r.object);it.colors=[...new Set([it.primary,...cs])].slice(0,4)}
+        else{it.photo=enhanceOnly(src).toDataURL('image/jpeg',0.85);it.cleaned=false}
+        await db.put('items',it)}catch(err){}
+    }
+    afterChange();toast(ok===todo.length?`Cleaned ${ok} photos`:`Cleaned ${ok} of ${todo.length}. The rest had busy backgrounds and were brightened instead.`);return;
   }
   if(b.id==='clean'){for(const i of items.filter(i=>i.inLaundry)){i.inLaundry=false;await db.put('items',i)}afterChange();toast('Everything marked clean')}
   if(b.id==='exp')exportBackup();
@@ -772,11 +946,85 @@ $('#importer').addEventListener('change',async e=>{
   }catch{toast('That file is not a Closet backup.')}
 });
 
+/* ---------- original R&B groove (generated live, no recordings) ---------- */
+const NOTE_ICON='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 17.5V6.2l10-2.2v11.3a3 3 0 1 1-2-2.8V7.3l-6 1.3v8.9a3 3 0 1 1-2-2.8z"/></svg>';
+const Groove=(()=>{
+  let ac=null,master=null,epBus=null,timer=null,on=false,step=0,next=0,noise=null;
+  const bpm=74,s16=60/bpm/4;
+  // Dm9, G13, Cmaj9, Am9 voicings, one chord per bar
+  const CH=[[53,57,60,64,69],[53,57,59,64,67],[52,55,59,62,67],[55,59,60,64,67]],ROOT=[38,43,36,33];
+  const hz=n=>440*Math.pow(2,(n-69)/12);
+  function env(g,t,peak,a,d){g.gain.setValueAtTime(0.0001,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.exponentialRampToValueAtTime(0.0001,t+a+d)}
+  function keys(t,notes,dur){notes.forEach((n,i)=>{const tt=t+i*0.014;
+    const o=ac.createOscillator(),o2=ac.createOscillator(),g=ac.createGain(),g2=ac.createGain();
+    o.type='sine';o.frequency.value=hz(n);o2.type='triangle';o2.frequency.value=hz(n)*2;o2.detune.value=4;
+    g2.gain.value=0.25;o2.connect(g2).connect(g);o.connect(g);g.connect(epBus);env(g,tt,0.05,0.015,dur);
+    o.start(tt);o2.start(tt);o.stop(tt+dur+0.1);o2.stop(tt+dur+0.1)})}
+  function bass(t,n,dur){const o=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();o.type='triangle';o.frequency.value=hz(n);f.type='lowpass';f.frequency.value=420;
+    o.connect(f).connect(g).connect(master);env(g,t,0.22,0.01,dur);o.start(t);o.stop(t+dur+0.05)}
+  function kick(t){const o=ac.createOscillator(),g=ac.createGain();o.frequency.setValueAtTime(120,t);o.frequency.exponentialRampToValueAtTime(42,t+0.13);o.connect(g).connect(master);env(g,t,0.55,0.003,0.22);o.start(t);o.stop(t+0.3)}
+  function hiss(t,type,freq,peak,dur){const s=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();s.buffer=noise;f.type=type;f.frequency.value=freq;s.connect(f).connect(g).connect(master);env(g,t,peak,0.002,dur);s.start(t);s.stop(t+dur+0.05)}
+  function snare(t){hiss(t,'bandpass',1900,0.16,0.16);const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=190;o.connect(g).connect(master);env(g,t,0.07,0.002,0.08);o.start(t);o.stop(t+0.12)}
+  function schedule(st,t){
+    const bar=Math.floor(st/16)%4,s=st%16,sw=(s%2)?s16*0.32:0,tt=t+sw;
+    if(s===0)keys(tt,CH[bar],s16*14);
+    if(s===10)keys(tt,CH[bar].slice(1),s16*5);
+    if(s===0||s===7||s===10)kick(tt);
+    if(s===4||s===12)snare(tt);
+    if(s%2===0||s===15)hiss(tt,'highpass',7500,s%4===0?0.05:0.03,0.035);
+    if(s===0)bass(tt,ROOT[bar],s16*5);
+    if(s===6)bass(tt,ROOT[bar]+12,s16*1.6);
+    if(s===8)bass(tt,ROOT[bar]+7,s16*4);
+    if(s===14)bass(tt,ROOT[(bar+1)%4]-1,s16*1.5);
+  }
+  function tick(){while(next<ac.currentTime+0.15){schedule(step,next);next+=s16;step++}}
+  function start(){
+    if(on)return;
+    try{
+      if(!ac){ac=new (window.AudioContext||window.webkitAudioContext)();
+        const comp=ac.createDynamicsCompressor();master=ac.createGain();master.gain.value=0;master.connect(comp).connect(ac.destination);
+        const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2300;epBus=ac.createGain();epBus.gain.value=0.9;epBus.connect(lp).connect(master);
+        noise=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);const ch=noise.getChannelData(0);for(let i=0;i<ch.length;i++)ch[i]=Math.random()*2-1;}
+      ac.resume();on=true;step=0;next=ac.currentTime+0.08;
+      master.gain.cancelScheduledValues(ac.currentTime);master.gain.setValueAtTime(master.gain.value,ac.currentTime);master.gain.linearRampToValueAtTime(0.55,ac.currentTime+2);
+      timer=setInterval(tick,25);tick();
+    }catch(e){on=false;toast('Music is not available on this device.')}
+    refreshMusicBtn();
+  }
+  function stop(){
+    if(!on)return;on=false;
+    const t=ac.currentTime;master.gain.cancelScheduledValues(t);master.gain.setValueAtTime(master.gain.value,t);master.gain.linearRampToValueAtTime(0,t+0.6);
+    setTimeout(()=>{if(!on){clearInterval(timer);ac.suspend()}},700);refreshMusicBtn();
+  }
+  document.addEventListener('visibilitychange',()=>{if(!ac)return;if(document.hidden)ac.suspend();else if(on)ac.resume()});
+  return{start,stop,toggle:()=>on?stop():start(),playing:()=>on};
+})();
+function refreshMusicBtn(){const b=$('#musicBtn');if(!b)return;const p=Groove.playing();b.setAttribute('aria-pressed',p);b.innerHTML=NOTE_ICON+(p?'Playing':'R&amp;B')}
+
+/* ---------- once-a-day welcome ---------- */
+const WELCOME=["You're lookin' good, sir.","Sharp as ever, sir.","Well, look who's dressed to impress.","Smooth. Real smooth.","Lookin' like a million bucks.","The fit is fitting, sir.","Cool, calm, and well dressed."];
+function maybeWelcome(){
+  const today=new Date().toDateString();
+  if(ls.get('closet.welcomed','')===today)return;
+  ls.set('closet.welcomed',today);
+  const first=!ls.get('closet.welcomedEver',false);ls.set('closet.welcomedEver',true);
+  const doy=Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/864e5);
+  const line=first?WELCOME[0]:WELCOME[doy%WELCOME.length];
+  const w=document.createElement('div');w.className='welcome';w.setAttribute('role','dialog');w.setAttribute('aria-label','Welcome');
+  w.innerHTML=`<div class="line">${esc(line)}</div><div class="rule"></div><div class="sub">${esc(new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}))}</div>
+    <button class="play" type="button">${NOTE_ICON}Play some R&amp;B</button>`;
+  document.body.appendChild(w);
+  let gone=false;const close=()=>{if(gone)return;gone=true;w.classList.add('out');setTimeout(()=>w.remove(),650)};
+  w.addEventListener('click',e=>{if(e.target.closest('.play'))Groove.start();close()});
+  setTimeout(close,4000);
+}
+
 /* ---------- start ---------- */
 (async()=>{
   try{items=await db.all('items')}catch{toast('Storage is blocked. Turn off Private Browsing and reopen.')}
   try{navigator.storage?.persist?.()}catch{}
   renderToday();renderCloset();renderSettings();
+  maybeWelcome();
   refreshWeather(false);
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
