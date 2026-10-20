@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daybrief</title>
+<meta name="theme-color" content="#1F2A4A">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{color-scheme:dark;--c0:#1F2A4A;--c1:#3B4F7A}
+html{background:var(--c0)}
+body{margin:0;min-height:100vh;color:#fff;font:15px/1.45 "Segoe UI Variable Text","Segoe UI",-apple-system,system-ui,sans-serif;
+  background:linear-gradient(140deg,var(--c0),var(--c1),var(--c0)) fixed;background-size:220% 220%}
+@media (prefers-reduced-motion:no-preference){body{animation:drift 40s ease-in-out infinite alternate}}
+@keyframes drift{from{background-position:0% 30%}to{background-position:100% 70%}}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+#app{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:28px max(20px,4vw) 36px}
+.loading{opacity:.75;font-size:18px;padding-top:30vh;text-align:center}
+.hero{display:flex;gap:28px;align-items:stretch;background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border-radius:22px;padding:24px 26px}
+.hl{flex:1;min-width:0}
+.greet{font-size:14px;font-weight:600;opacity:.8}
+.date{font-size:13px;opacity:.65;margin-top:2px}
+h1{font:700 clamp(24px,3.2vw,36px)/1.15 "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;margin:14px 0 6px;text-wrap:balance}
+.sub{margin:0;opacity:.85;font-size:15.5px}
+.aff{margin:16px 0 0;font-style:italic;opacity:.75}
+.hr{flex:0 0 250px;border-left:1px solid rgba(255,255,255,.18);padding-left:24px;display:flex;flex-direction:column;justify-content:center}
+.temp{display:flex;align-items:center;gap:10px;font:600 46px/1 "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif}
+.temp svg{width:44px;height:44px}
+.wdet{opacity:.8;font-size:13.5px;margin-top:8px}
+.stats{list-style:none;margin:14px 0 0;padding:0;font-size:14px;font-weight:600}
+.stats li{padding:3px 0}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+.sec{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border-radius:18px;padding:14px 18px}
+h2{margin:0 0 6px;font-size:13px;font-weight:700;opacity:.8}
+ul{margin:0;padding:0;list-style:none}
+.sec li{padding:8px 0;border-top:1px solid rgba(255,255,255,.12)}
+.sec li:first-child{border-top:0}
+small{display:block;opacity:.72;font-size:12.5px}
+.none{opacity:.7;font-size:14px;margin:6px 0}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;background:rgba(255,255,255,.2);margin-right:7px;vertical-align:1px}
+footer{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-top:18px;font-size:12.5px;opacity:.75}
+footer button{font:inherit;font-weight:600;color:#fff;background:rgba(255,255,255,.16);border:0;border-radius:999px;padding:6px 14px;cursor:pointer}
+footer button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.setup{max-width:460px;margin:12vh auto 0;background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border-radius:22px;padding:26px}
+.setup h1{margin-top:0}
+.setup label{display:block;font-size:13px;font-weight:600;margin:16px 0 6px;opacity:.85}
+.setup input{width:100%;box-sizing:border-box;font:inherit;color:#fff;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:10px 12px}
+.setup input:focus-visible{outline:2px solid #fff;outline-offset:1px}
+.setup button{margin-top:20px;width:100%;font:inherit;font-weight:700;color:#1F2A4A;background:#fff;border:0;border-radius:12px;padding:11px;cursor:pointer}
+.setup button:focus-visible{outline:2px solid #fff;outline-offset:3px}
+.err{background:rgba(255,120,120,.2);border-radius:10px;padding:8px 12px;font-size:14px}
+@media (max-width:760px){.hero{flex-direction:column}.hr{flex:none;border-left:0;border-top:1px solid rgba(255,255,255,.18);padding:16px 0 0}.grid{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body data-fx="stars">
+<canvas id="fx" aria-hidden="true"></canvas>
+<main id="app"><div class="loading">Loading your day</div></main>
+<script>
+// Daybrief: a home-screen briefing widget for Scriptable.
+// Built for the MEDIUM widget size. In the widget's settings, set "When Interacting" to "Run Script"
+// so tapping the widget opens the full briefing.
+
+/* ================= YOUR SETTINGS ================= */
+const SETTINGS = {
+  name: 'Austin',
+
+  // Private ICS link from Outlook on the web:
+  // Settings > Calendar > Shared calendars > Publish a calendar > ICS link.
+  outlookCalendarUrl: 'PASTE_YOUR_OUTLOOK_ICS_LINK_HERE',
+
+  // Also read the iPhone Calendar app (iCloud, Google and other calendars added in iOS Settings).
+  useIPhoneCalendars: true,
+  // Read due dates from the iPhone Reminders app. Off by default.
+  useReminders: false,
+
+  // One entry per Gmail helper. The key must match the KEY you typed into that helper.
+  gmail: [
+    { label: 'Personal', url: 'PASTE_PERSONAL_HELPER_URL_HERE', key: 'PASTE_YOUR_SECRET_WORDS_HERE' },
+  ],
+
+  // Always flagged when found in the sender OR the subject line (not case-sensitive).
+  vip: ['charlott greub', 'greub', 'thesis', 'blue key', 'kristina', 'advisor', 'professor', 'prof.', 'dean', 'recruiting', 'hr@'],
+
+  // Extra words or names that mean "something to look forward to" (not case-sensitive).
+  funWords: ['coffee'],
+
+  refreshMinutes: 15,
+};
+/* ================================================= */
+
+// Events titled with just a name ("Keely", "Grant & Ben") count as plans with people,
+// unless the word is a school or task word.
+const NOT_NAMES = /^(thesis|studio|portfolio|structures|homework|hw|quiz|exam|midterm|final|finals|essay|paper|reading|project|lab|report|presentation|review|crit|jury|meeting|class|lecture|seminar|gym|workout|run|work|shift|appointment|dentist|doctor|haircut|laundry|groceries|errands|cleaning|deadline|due|submit|study|studying|office|hours|advising|registration|tuition|rent|bills?)$/i;
+function isNameOnly(t) {
+  const words = String(t).trim().split(/\s*(?:&|\+|,|\band\b)\s*/i).filter(Boolean);
+  return words.length >= 1 && words.length <= 3 && words.every(w => /^[A-Z][a-z'’]+$/.test(w) && !NOT_NAMES.test(w));
+}
+// Anything starting with "ARCH" (course work) is homework, never fun.
+const isCourse = t => /^\s*ARCH\b/i.test(String(t));
+function isFun(t) {
+  if (isCourse(t)) return false;
+  return RULES.fun.test(t) || isNameOnly(t) || SETTINGS.funWords.some(w => w && String(t).toLowerCase().includes(w.toLowerCase()));
+}
+
+const RULES = {
+  email: [
+    { label: 'Deadline', w: 3, kind: 'act', re: /\b(due|deadline|by (mon|tues|wednes|thurs|fri|satur|sun)day|by eod|by end of day|asap|urgent|action required|time.sensitive|last chance to submit|reminder)\b/i },
+    { label: 'Career', w: 3, kind: 'act', re: /\b(offer|interview|application|position|candidate|recruit\w*|onboarding|start date|portfolio review)\b/i },
+    { label: 'School', w: 2, kind: 'act', re: /\b(grade|syllabus|crit|jury|review|thesis|studio|assignment|exam|midterm|final|advis\w*|registration|enroll)\b/i },
+    { label: 'Money', w: 2, kind: 'act', re: /\b(bill|payment|invoice|overdue|balance|tuition|refund|charge|autopay failed)\b/i },
+    { label: 'Security', w: 3, kind: 'check', re: /\b(security alert|new sign.in|verify|verification code|password|suspicious|2fa|two.factor)\b/i },
+    { label: 'Reply', w: 2, kind: 'reply', re: /\?|\b(can you|could you|are you|let me know|thoughts|rsvp|confirm|available)\b/i },
+    { label: 'Reply', w: 1, kind: 'reply', re: /^\s*re:/i },
+    { label: 'Fun', w: 1, kind: 'fun', re: /\b(party|dinner|game|concert|tickets|trip|plans|weekend|birthday|hang)\b/i },
+  ],
+  demote: { re: /\b(sale|% off|\d+% off|deal|unsubscribe|newsletter|digest|webinar|promo\w*|limited time|sponsored|events this week)\b/i, w: -4 },
+  noreply: { re: /no.?reply|donotreply|notifications?@|marketing@/i, w: -2 },
+  promotionsTab: -4,
+  socialTab: -1,
+  schoolDomain: { re: /\.edu\b/i, w: 1 },
+  forwardedSchool: 2,
+  threshold: 3,
+  fun: /\b(coffee|lunch|dinner|party|parties|game|games|concert|trip|birthday|bday|drinks|beers?|bar|brunch|happy hour|hang|movie|show|tailgate|flight|vacation|break|weekend|wedding|reception|rehearsal|bachelor|bachelorette|shower|celebration|festival|fair|cabin|lake|camping|ski|golf|fishing|hunting|date night|date|homecoming|reunion|graduation party|grad party|road trip|visit|holiday|thanksgiving|christmas|halloween)\b/i,
+  prep: /\b(review|crit|jury|presentation|interview|exam|midterm|final|pin.?up|meeting|thesis)\b/i,
+  big: /\b(review|presentation|interview|jury|final)\b/i,
+};
+
+const AFF = {
+  busy: ['One thing at a time. That is how the whole list gets done.', 'You have handled full days before. You will handle this one.', 'Progress over perfect today.', 'Breathe first, then the next task.', 'Focus on the next hour, not the whole week.'],
+  light: ['A lighter day is room to do your best work.', 'Use the quiet to get ahead on something you care about.', 'Rest counts as progress too.', 'Small steps today make Friday easier.'],
+  morning: ['Today is a fresh drawing set. Start sketching.', 'You are more prepared than you feel.', 'Show up, and the rest follows.'],
+  night: ['You did enough today. Let it be enough.', 'Tomorrow gets a rested you. Sleep is part of the plan.', 'Close the laptop. The work will be there.'],
+  big: ['You earned your seat in that room. Walk in like it.', 'Your work is ready to be seen.', 'Nerves mean you care. Use them.'],
+  weekend: ['Weekend energy. You earned it.', 'Recharge now so Monday you says thanks.'],
+};
+
+/* ---------- small helpers ---------- */
+const DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+const fmtT = d => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(':00', '');
+const mins = (a, b) => Math.round((b - a) / 60000);
+const sameDay = (a, b) => a.toDateString() === b.toDateString();
+const startOfDay = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+// "Thesis boards due" reads better as "Thesis boards due tomorrow" than "Due tomorrow: Thesis boards due".
+const dueText = (t, when) => (/\bdue\b/i.test(t) ? `${t} ${when}` : `Due ${when}: ${t}`);
+const isPlaceholder = s => !s || /PASTE_/.test(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ---------- Outlook calendar (ICS) parser ---------- */
+function splitICSLine(line) {
+  let inQ = false, i = 0;
+  for (; i < line.length; i++) { const c = line[i]; if (c === '"') inQ = !inQ; else if (c === ':' && !inQ) break; }
+  if (i >= line.length) return null;
+  const head = line.slice(0, i), val = line.slice(i + 1);
+  const parts = []; let cur = ''; inQ = false;
+  for (const c of head) { if (c === '"') { inQ = !inQ; continue; } if (c === ';' && !inQ) { parts.push(cur); cur = ''; } else cur += c; }
+  parts.push(cur);
+  const params = {};
+  parts.slice(1).forEach(p => { const k = p.indexOf('='); if (k > 0) params[p.slice(0, k).toUpperCase()] = p.slice(k + 1); });
+  return { name: parts[0].toUpperCase(), params, val };
+}
+const unescICS = s => String(s || '').replace(/\\n/gi, ' ').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\').trim();
+const parseOffset = s => { const m = String(s || '').match(/^([+-])(\d{2})(\d{2})$/); return m ? (m[1] === '-' ? -1 : 1) * (+m[2] * 60 + +m[3]) : 0; };
+const ruleObj = r => Object.fromEntries(String(r).split(';').filter(Boolean).map(kv => { const i = kv.indexOf('='); return [kv.slice(0, i).toUpperCase(), kv.slice(i + 1)]; }));
+
+function tzOffsetAt(tz, wallMs) {
+  const parts = tz.parts.map(p => ({ to: parseOffset(p.props.TZOFFSETTO && p.props.TZOFFSETTO.val), start: (p.props.DTSTART && p.props.DTSTART.val) || '16010101T000000', rule: p.props.RRULE && p.props.RRULE.val }));
+  if (!parts.length) return null;
+  if (parts.length === 1) return parts[0].to;
+  const year = new Date(wallMs).getUTCFullYear();
+  const transition = (p, yr) => {
+    const t = p.start.match(/T(\d{2})(\d{2})/) || [0, '00', '00'];
+    if (!p.rule) { const d = p.start.match(/^(\d{4})(\d{2})(\d{2})/); return Date.UTC(yr, +d[2] - 1, +d[3], +t[1], +t[2]); }
+    const r = ruleObj(p.rule), month = +r.BYMONTH - 1;
+    const bd = String(r.BYDAY || '1SU').match(/^([+-]?\d)?(SU|MO|TU|WE|TH|FR|SA)$/);
+    const n = bd && bd[1] ? +bd[1] : 1, wd = DAYS.indexOf(bd ? bd[2] : 'SU');
+    let day;
+    if (n > 0) { const first = new Date(Date.UTC(yr, month, 1)).getUTCDay(); day = 1 + ((wd - first + 7) % 7) + (n - 1) * 7; }
+    else { const last = new Date(Date.UTC(yr, month + 1, 0)); day = last.getUTCDate() - ((last.getUTCDay() - wd + 7) % 7) + (n + 1) * 7; }
+    return Date.UTC(yr, month, day, +t[1], +t[2]);
+  };
+  let best = null, bt = -Infinity;
+  for (const p of parts) for (const yr of [year - 1, year]) { const t = transition(p, yr); if (t <= wallMs && t > bt) { bt = t; best = p; } }
+  return (best || parts[0]).to;
+}
+
+function icsDate(prop, tzs) {
+  if (!prop) return null;
+  const v = String(prop.val).trim(), p = prop.params || {};
+  if (p.VALUE === 'DATE' || /^\d{8}$/.test(v)) return { date: new Date(+v.slice(0, 4), +v.slice(4, 6) - 1, +v.slice(6, 8)), allDay: true };
+  const m = v.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/);
+  if (!m) return null;
+  const [, Y, M, D, h, mi, s = '00', z] = m;
+  if (z) return { date: new Date(Date.UTC(+Y, +M - 1, +D, +h, +mi, +s)), allDay: false };
+  const tz = p.TZID && tzs[p.TZID];
+  if (tz) {
+    const wall = Date.UTC(+Y, +M - 1, +D, +h, +mi, +s), off = tzOffsetAt(tz, wall);
+    if (off != null) return { date: new Date(wall - off * 60000), allDay: false };
+  }
+  return { date: new Date(+Y, +M - 1, +D, +h, +mi, +s), allDay: false }; // floating time: treat as phone's time zone
+}
+
+function parseDuration(s) {
+  const m = String(s || '').match(/^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!m) return 0;
+  return (((+m[2] || 0) * 7 + (+m[3] || 0)) * 86400 + (+m[4] || 0) * 3600 + (+m[5] || 0) * 60 + (+m[6] || 0)) * 1000;
+}
+
+function expandRule(ev, from, to) {
+  const r = ruleObj(ev.rrule), iv = Math.max(1, +(r.INTERVAL || 1)), count = r.COUNT ? +r.COUNT : Infinity;
+  let until = Infinity;
+  if (r.UNTIL) { const u = icsDate({ val: r.UNTIL, params: {} }, {}); if (u) until = u.date.getTime() + (u.allDay ? 864e5 - 1 : 0); }
+  const s0 = ev.start, res = [];
+  let n = 0, guard = 0;
+  const take = d => { const t = d.getTime(); if (t < s0.getTime()) return true; if (t > until || n >= count) return false; n++; if (t >= from && t <= to) res.push(new Date(t)); return t <= to; };
+  const byday = r.BYDAY ? r.BYDAY.split(',') : null;
+  if (r.FREQ === 'DAILY') {
+    for (let k = 0; guard++ < 6000; k += iv) { const d = new Date(s0); d.setDate(s0.getDate() + k); if (!take(d)) break; }
+  } else if (r.FREQ === 'WEEKLY') {
+    const days = (byday ? byday.map(x => DAYS.indexOf(x.slice(-2))) : [s0.getDay()]).filter(x => x >= 0).sort((a, b) => a - b);
+    const wk = startOfDay(s0); wk.setDate(wk.getDate() - wk.getDay());
+    outer: for (let k = 0; guard++ < 3000; k += iv) {
+      for (const wd of days) {
+        const d = new Date(wk); d.setDate(wk.getDate() + k * 7 + wd); d.setHours(s0.getHours(), s0.getMinutes(), s0.getSeconds(), 0);
+        if (d < s0) continue;
+        if (!take(d)) break outer;
+      }
+    }
+  } else if (r.FREQ === 'MONTHLY') {
+    for (let k = 0; guard++ < 800; k += iv) {
+      const base = new Date(s0.getFullYear(), s0.getMonth() + k, 1, s0.getHours(), s0.getMinutes(), s0.getSeconds());
+      const cands = [];
+      if (byday) {
+        for (const b of byday) {
+          const mm = b.match(/^([+-]?\d+)?(SU|MO|TU|WE|TH|FR|SA)$/); if (!mm) continue;
+          const wd = DAYS.indexOf(mm[2]), nth = mm[1] ? +mm[1] : 0, list = [];
+          for (const d = new Date(base); d.getMonth() === base.getMonth(); d.setDate(d.getDate() + 1)) if (d.getDay() === wd) list.push(new Date(d));
+          if (nth > 0 && list[nth - 1]) cands.push(list[nth - 1]); else if (nth < 0 && list[list.length + nth]) cands.push(list[list.length + nth]); else if (!nth) cands.push(...list);
+        }
+      } else {
+        const d = new Date(base); d.setDate(r.BYMONTHDAY ? +r.BYMONTHDAY : s0.getDate());
+        if (d.getMonth() === base.getMonth()) cands.push(d);
+      }
+      cands.sort((a, b) => a - b);
+      let stop = false; for (const c of cands) if (!take(c)) { stop = true; break; }
+      if (stop) break;
+    }
+  } else if (r.FREQ === 'YEARLY') {
+    for (let k = 0; guard++ < 300; k += iv) { const d = new Date(s0); d.setFullYear(s0.getFullYear() + k); if (!take(d)) break; }
+  } else {
+    take(new Date(s0));
+  }
+  return res;
+}
+
+function parseICS(text, winStart, winEnd) {
+  const lines = String(text).replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  const tzs = {}, vevents = [];
+  let ev = null, tz = null, part = null;
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.startsWith('BEGIN:')) {
+      const t = line.slice(6).trim().toUpperCase();
+      if (t === 'VEVENT') ev = { props: {} };
+      else if (t === 'VTIMEZONE') tz = { id: null, parts: [] };
+      else if ((t === 'STANDARD' || t === 'DAYLIGHT') && tz) part = { type: t, props: {} };
+      continue;
+    }
+    if (line.startsWith('END:')) {
+      const t = line.slice(4).trim().toUpperCase();
+      if (t === 'VEVENT' && ev) { vevents.push(ev); ev = null; }
+      else if (t === 'VTIMEZONE' && tz) { if (tz.id) tzs[tz.id] = tz; tz = null; }
+      else if ((t === 'STANDARD' || t === 'DAYLIGHT') && part && tz) { tz.parts.push(part); part = null; }
+      continue;
+    }
+    const p = splitICSLine(line); if (!p) continue;
+    if (ev) { if (p.name === 'EXDATE') (ev.props.EXDATE = ev.props.EXDATE || []).push(p); else ev.props[p.name] = p; }
+    else if (part) part.props[p.name] = p;
+    else if (tz && p.name === 'TZID') tz.id = p.val;
+  }
+  const base = [], overrides = {};
+  for (const v of vevents) {
+    const P = v.props, s = icsDate(P.DTSTART, tzs); if (!s) continue;
+    const e = P.DTEND ? icsDate(P.DTEND, tzs) : null;
+    const dur = e ? e.date - s.date : P.DURATION ? parseDuration(P.DURATION.val) : (s.allDay ? 864e5 : 0);
+    const item = {
+      uid: P.UID ? P.UID.val : Math.random().toString(36), title: unescICS(P.SUMMARY ? P.SUMMARY.val : '(No title)'),
+      location: unescICS(P.LOCATION ? P.LOCATION.val : ''), allDay: s.allDay, start: s.date, dur,
+      rrule: P.RRULE ? P.RRULE.val : null, cancelled: !!(P.STATUS && /cancel/i.test(P.STATUS.val)),
+      exdates: (P.EXDATE || []).flatMap(x => x.val.split(',').map(val => { const d = icsDate({ val, params: x.params }, tzs); return d ? d.date.getTime() : 0; })),
+    };
+    if (P['RECURRENCE-ID']) { const r = icsDate(P['RECURRENCE-ID'], tzs); if (r) (overrides[item.uid] = overrides[item.uid] || {})[r.date.getTime()] = item; }
+    else base.push(item);
+  }
+  const out = [], used = new Set();
+  const add = (start, dur, src) => {
+    const end = new Date(start.getTime() + dur);
+    if (end > winStart && start < winEnd && !src.cancelled) out.push({ title: src.title, location: src.location, allDay: src.allDay, start, end, source: 'Outlook' });
+  };
+  for (const b of base) {
+    const ov = overrides[b.uid] || {};
+    const occ = b.rrule ? expandRule(b, winStart.getTime() - Math.max(b.dur, 0) - 864e5, winEnd.getTime()) : [b.start];
+    for (const st of occ) {
+      const t = st.getTime(); if (b.exdates.includes(t)) continue;
+      const o = ov[t];
+      if (o) { used.add(o); add(o.start, o.dur, o); } else add(st, b.dur, b);
+    }
+  }
+  Object.values(overrides).forEach(m => Object.values(m).forEach(o => { if (!used.has(o)) add(o.start, o.dur, o); }));
+  return out.sort((a, b) => a.start - b.start);
+}
+
+/* ---------- rules engine ---------- */
+function scoreEmail(m) {
+  const text = m.subject || '', from = m.from || '';
+  let s = 0, kind = 'fyi'; const tags = new Set();
+  const hay = (from + ' ' + text).toLowerCase();
+  if (SETTINGS.vip.some(v => hay.includes(v.toLowerCase()))) { s += 3; tags.add('VIP'); }
+  for (const r of RULES.email) if (r.re.test(text)) { s += r.w; tags.add(r.label); if (kind === 'fyi' || (r.kind === 'act' && kind !== 'act')) kind = r.kind; }
+  const labels = m.labels || [];
+  if (RULES.demote.re.test(text) || labels.includes('CATEGORY_PROMOTIONS')) { s += RULES.demote.re.test(text) ? RULES.demote.w : RULES.promotionsTab; kind = 'fyi'; }
+  if (labels.includes('CATEGORY_SOCIAL')) s += RULES.socialTab;
+  if (RULES.noreply.re.test(from) && !tags.has('Security')) s += RULES.noreply.w;
+  if (RULES.schoolDomain.re.test(from)) s += RULES.schoolDomain.w;
+  if (m.fwd) s += RULES.forwardedSchool;
+  const who = from.replace(/<.*>/, '').replace(/"/g, '').trim() || from;
+  return { ...m, who, score: s, priority: s >= RULES.threshold, kind, tags: [...tags] };
+}
+
+function weatherTips(w) {
+  const t = [];
+  if (w.code === 'snow' || (w.rain >= 50 && w.hi <= 34)) t.push(['Snow likely. Leave 10 minutes early and wear boots.', 'snow']);
+  else if (w.rain >= 50) t.push([`${w.rain}% chance of rain. Bring an umbrella or rain shell.`, 'rain']);
+  else if (w.rain >= 30) t.push([`${w.rain}% chance of showers. Toss an umbrella in your bag.`, 'rain']);
+  if (w.lo <= 0) t.push(['Dangerously cold. Cover your face and hands, and warm up the car.', 'cold']);
+  else if (w.lo <= 32) t.push(['Below freezing. Watch for ice and scrape the windshield.', 'cold']);
+  else if (w.hi <= 48) t.push(['Chilly all day. Grab a warm jacket.', 'cold']);
+  else if (w.lo <= 45 && w.hi >= 60) t.push([`Big swing from ${w.lo}° to ${w.hi}°. Layer up.`, 'mild']);
+  if (w.hi >= 90) t.push(['Hot one. Drink water and keep to the shade midday.', 'hot']);
+  else if (w.hi >= 82) t.push(['Warm day. Dress light and carry water.', 'hot']);
+  if (w.wind >= 20) t.push([`Gusty, around ${w.wind} mph. Hold onto your boards.`, 'wind']);
+  if (w.uv >= 7) t.push(['UV is high. Sunscreen if you are outside long.', 'sun']);
+  return t;
+}
+
+function brief(now, d) {
+  const emails = d.emails.map(scoreEmail).sort((a, b) => b.score - a.score);
+  const pri = emails.filter(e => e.priority);
+  const timed = d.events.filter(e => !e.allDay);
+  const upcoming = timed.filter(e => e.end > now).sort((a, b) => a.start - b.start);
+  const today = upcoming.filter(e => sameDay(e.start, now));
+  const tmr = addDays(now, 1);
+  const tomorrow = timed.filter(e => sameDay(e.start, tmr));
+  // Single-day all-day events are treated as deadlines (homework, personal due dates).
+  // Fun or multi-day ones (breaks, trips, birthdays) are not.
+  const multiDay = e => e.end - e.start > 864e5 + 3600e3;
+  // ARCH all-day events are always due dates; multi-day ones are due on their last day.
+  const isDeadline = e => e.allDay && (isCourse(e.title) || (!multiDay(e) && !isFun(e.title)));
+  const dueDay = e => (multiDay(e) ? new Date(e.end.getTime() - 864e5) : e.start);
+  const deadlines = d.events.filter(isDeadline).map(e => ({ ...e, start: dueDay(e) }));
+  const allDayToday = d.events.filter(e => e.allDay && e.start <= now && e.end > now && !isDeadline(e));
+  const dueTodayAD = deadlines.filter(e => sameDay(e.start, now));
+  const dueTomorrowAD = deadlines.filter(e => sameDay(e.start, tmr));
+  const dueWeekAD = deadlines.filter(e => e.start > tmr && !sameDay(e.start, tmr) && mins(now, e.start) <= 7 * 24 * 60);
+  const overdue = d.reminders.filter(r => r.due && r.due < now);
+  const dueToday = d.reminders.filter(r => r.due && r.due >= now && sameDay(r.due, now));
+  const w = d.weather, wt = w ? weatherTips(w) : [];
+  const hr = now.getHours(), isNight = hr >= 20 || hr < 4, isEve = hr >= 17;
+  const actions = [];
+  const next = today[0];
+  if (next) {
+    const m = mins(now, next.start);
+    if (next.start <= now) actions.push({ tag: 'Calendar', p: 95, h: `${next.title} is happening now`, s: `Until ${fmtT(next.end)}${next.location ? ', ' + next.location : ''}` });
+    else if (m <= 60) actions.push({ tag: 'Calendar', p: 90, h: `${next.title} in ${m} min`, s: `${fmtT(next.start)}${next.location ? ', ' + next.location : ''}. Head out soon.` });
+    else if (m <= 180) actions.push({ tag: 'Calendar', p: m <= 90 ? 70 : 60, h: `${next.title} at ${fmtT(next.start)}`, s: next.location || 'Coming up today' });
+  }
+  if (dueTodayAD.length) {
+    const more = dueTodayAD.length > 1 ? ` (+${dueTodayAD.length - 1} more)` : '';
+    actions.push({ tag: 'Due', p: isNight ? 64 : 82, h: dueText(dueTodayAD[0].title, 'today') + more, s: isNight ? 'Wrap it up tonight.' : 'All-day deadline' });
+  }
+  if (dueTomorrowAD.length) {
+    const more = dueTomorrowAD.length > 1 ? ` (+${dueTomorrowAD.length - 1} more)` : '';
+    actions.push({ tag: 'Due', p: (isEve || isNight) ? 80 : 55, h: dueText(dueTomorrowAD[0].title, 'tomorrow') + more, s: (isEve || isNight) ? 'Finish it tonight.' : 'Give it some time today.' });
+  }
+  overdue.forEach(r => actions.push({ tag: 'Reminder', p: 68, h: `Overdue: ${r.title}`, s: 'Knock this out first' }));
+  dueToday.forEach(r => actions.push({ tag: 'Reminder', p: 75, h: `${r.title} by ${fmtT(r.due)}`, s: 'Due today' }));
+  pri.slice(0, 3).forEach((e, i) => actions.push({
+    tag: e.acct, p: 70 - i * 3 + (e.tags.includes('Career') ? 6 : 0) + (e.tags.includes('VIP') ? 3 : 0),
+    h: e.kind === 'reply' ? `Reply to ${e.who}` : e.kind === 'check' ? `Check: ${e.subject.split(':')[0]}` : `${e.who}: ${e.subject}`,
+    s: e.kind === 'reply' ? e.subject : `${e.acct} inbox`,
+  }));
+  const early = tomorrow.filter(e => e.start.getHours() < 10);
+  const bigTomorrow = tomorrow.filter(e => RULES.prep.test(e.title));
+  if ((isEve || isNight) && (early.length || bigTomorrow.length)) {
+    const e = bigTomorrow[0] || early[0];
+    actions.push({ tag: 'Calendar', p: isNight ? 92 : 72, h: `${e.title} tomorrow at ${fmtT(e.start)}`, s: isNight ? 'Lay out what you need, then get some sleep.' : 'Prep tonight so the morning is easy.' });
+  }
+  if (wt.length && (wt[0][1] === 'snow' || (wt.some(x => x[1] === 'cold') && w.lo <= 0))) {
+    const tip = wt.find(x => x[1] === 'snow') || wt.find(x => x[1] === 'cold');
+    actions.push({ tag: 'Weather', p: 85, h: tip[0].split('. ')[0] + '.', s: tip[0].split('. ').slice(1).join('. ') });
+  }
+  if (!actions.length) actions.push({ tag: '', p: 10, h: isNight ? 'Nothing pressing. Wind down.' : today.length ? `Next up: ${today[0].title} at ${fmtT(today[0].start)}` : 'Clear schedule. Pick one thing to move forward.', s: isNight ? 'Tomorrow looks manageable.' : 'You are ahead today.' });
+  actions.sort((a, b) => b.p - a.p);
+
+  const fun = d.events.filter(e => (e.start > now || (e.allDay && e.end > now)) && isFun(e.title) && mins(now, e.start) <= 60 * 24 * 7);
+  const funMail = emails.filter(e => e.tags.includes('Fun') && !RULES.demote.re.test(e.subject));
+  const look = [
+    ...fun.map(e => ({ h: e.title, s: (e.allDay && e.start <= now) ? 'Today, all day' : sameDay(e.start, now) ? `Today${e.allDay ? '' : ' at ' + fmtT(e.start)}` : e.start.toLocaleDateString('en-US', { weekday: 'long' }) + (e.allDay ? '' : ` at ${fmtT(e.start)}`) })),
+    ...funMail.map(e => ({ h: e.subject, s: `From ${e.who}` })),
+  ];
+  if (now.getDay() === 5) look.push({ h: 'It is Friday', s: 'The weekend starts tonight' });
+  const prep = [
+    ...dueTodayAD.map(e => ({ h: e.title, s: 'Due today' })),
+    ...today.filter(e => RULES.prep.test(e.title)).map(e => ({ h: e.title, s: `Today ${fmtT(e.start)}${e.location ? ', ' + e.location : ''}` })),
+    ...bigTomorrow.map(e => ({ h: e.title, s: `Tomorrow ${fmtT(e.start)}. Prep tonight.` })),
+    ...dueTomorrowAD.map(e => ({ h: e.title, s: 'Due tomorrow' })),
+    ...dueWeekAD.sort((a, b) => a.start - b.start).map(e => ({ h: e.title, s: 'Due ' + e.start.toLocaleDateString('en-US', { weekday: 'long' }) })),
+    ...dueToday.map(r => ({ h: r.title, s: `Due ${fmtT(r.due)}` })),
+    ...overdue.map(r => ({ h: r.title, s: 'Overdue' })),
+  ];
+  const ctx = (bigTomorrow.length && (isEve || isNight)) || today.some(e => RULES.big.test(e.title)) ? 'big'
+    : now.getDay() === 5 && isEve ? 'weekend' : isNight ? 'night'
+    : (today.length >= 4 || pri.length >= 4 || dueTodayAD.length >= 2) ? 'busy' : hr < 11 ? 'morning' : 'light';
+  const pool = AFF[ctx], doy = Math.floor((startOfDay(now) - new Date(now.getFullYear(), 0, 0)) / 864e5);
+  return { now, emails, pri, today, allDayToday, dueTodayAD, dueTomorrowAD, isEve, actions, look, prep, wt, weather: w, aff: pool[doy % pool.length], isNight, ignored: d.ignored || 0 };
+}
+
+function upNext(b) {
+  const up = b.actions.slice(0, 4).map(a => ({ h: a.h, s: a.s, tag: a.tag }));
+  const has = t => up.some(u => u.tag === t);
+  if (b.today[0] && !up.some(u => u.h.includes(b.today[0].title))) up.push({ tag: 'Calendar', h: `${b.today[0].title} at ${fmtT(b.today[0].start)}`, s: b.today[0].location || 'Next on your calendar' });
+  b.dueTodayAD.slice(1, 4).forEach(e => up.push({ tag: 'Due', h: dueText(e.title, 'today'), s: 'All-day deadline' }));
+  b.allDayToday.slice(0, 2).forEach(e => { if (!up.some(u => u.h.includes(e.title))) up.push({ tag: 'Calendar', h: e.title, s: 'All day today' }); });
+  if (b.weather && !has('Weather')) {
+    if (b.wt.length) up.push({ tag: 'Weather', h: b.wt[0][0].split('. ')[0] + '.', s: `${b.weather.now}° now, high ${b.weather.hi}°, low ${b.weather.lo}°` });
+    else up.push({ tag: 'Weather', h: `Nice out: high ${b.weather.hi}°`, s: 'Nothing to plan around' });
+  }
+  [...new Set(b.pri.map(e => e.acct))].forEach(ac => {
+    if (has(ac)) return;
+    const e = b.pri.find(x => x.acct === ac);
+    up.push({ tag: ac, h: e.kind === 'reply' ? `Reply to ${e.who}` : e.subject, s: e.kind === 'reply' ? e.subject : `From ${e.who}` });
+  });
+  return up.slice(0, 8);
+}
+
+function palette(b) {
+  const h = b.now.getHours(), w = b.weather || {}, wet = w.rain >= 50;
+  let g = h < 11 ? ['#2E3F7A', '#C7756B'] : h < 17 ? ['#1F5C8C', '#3FA3A5'] : h < 20 ? ['#3A2C6E', '#B04F7B'] : ['#0E1430', '#3A2766'];
+  if (w.code === 'snow') g = ['#41546E', '#9FB4C9']; else if (wet) g = [g[0], '#4B607E'];
+  if (w.hi >= 88 && h >= 11 && h < 20) g = ['#B4472E', '#E9A23B'];
+  return g;
+}
+
+function ambient(b) {
+  const w = b.weather || {}, hr = b.now.getHours(), dark = w.isDay === false || hr >= 20 || hr < 6;
+  if (w.code === 'snow') return 'snow';
+  if (w.code === 'rain' || w.rain >= 60) return 'rain';
+  if (dark) return w.code === 'cloud' ? 'cloud' : 'stars';
+  if (w.code === 'cloud') return 'cloud';
+  return 'sun';
+}
+
+
+/* ---------- laptop page ---------- */
+const ICON = {
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="#FFD66B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="#FFD66B"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></svg>',
+  moon: '<svg viewBox="0 0 24 24"><path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10Z" fill="#E8E2C8"/></svg>',
+  cloud: '<svg viewBox="0 0 24 24"><path d="M7 18.5h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 11a3.8 3.8 0 0 0 1 7.5Z" fill="#E6ECF5"/></svg>',
+  rain: '<svg viewBox="0 0 24 24" fill="none" stroke-linecap="round"><path d="M7 15h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 7.6 3.7 3.7 0 0 0 7 15Z" fill="#E6ECF5"/><path d="M8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5" stroke="#8EC5FF" stroke-width="2"/></svg>',
+  snow: '<svg viewBox="0 0 24 24" fill="#FFFFFF"><path d="M7 14.5h10a4 4 0 0 0 .4-8A6 6 0 0 0 6 7.1a3.7 3.7 0 0 0 1 7.4Z" fill="#E6ECF5"/><circle cx="8" cy="18.5" r="1.3"/><circle cx="12" cy="20" r="1.3"/><circle cx="16" cy="18.5" r="1.3"/></svg>'
+};
+function wxFrom(j) {
+  const code = j.daily.weather_code[0], cur = j.current.weather_code;
+  const kind = c => ([71, 73, 75, 77, 85, 86].includes(c) ? 'snow' : (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95 ? 'rain' : c >= 1 && c <= 48 ? 'cloud' : 'clear');
+  return {
+    now: Math.round(j.current.temperature_2m), hi: Math.round(j.daily.temperature_2m_max[0]), lo: Math.round(j.daily.temperature_2m_min[0]),
+    rain: j.daily.precipitation_probability_max[0] || 0, uv: Math.round(j.daily.uv_index_max[0] || 0), wind: Math.round(j.current.wind_speed_10m || 0),
+    code: kind(code) === 'snow' ? 'snow' : kind(cur), isDay: !!j.current.is_day, raw: cur
+  };
+}
+function wxIcon(w) {
+  if (!w) return ICON.cloud;
+  if (w.code === 'snow') return ICON.snow;
+  if (w.code === 'rain' || w.rain >= 50) return ICON.rain;
+  if (w.code === 'cloud') return ICON.cloud;
+  return w.isDay ? ICON.sun : ICON.moon;
+}
+const list = (items, empty) => items.length
+  ? `<ul>${items.map(i => `<li>${i.tag ? `<span class="tag">${esc(i.tag)}</span>` : ''}${esc(i.h)}${i.s ? `<small>${esc(i.s)}</small>` : ''}</li>`).join('')}</ul>`
+  : `<p class="none">${esc(empty)}</p>`;
+
+let lastData = null, lastAt = 0, loading = false;
+function render(o) {
+  const now = new Date(), from = startOfDay(now), to = addDays(from, 9), status = Object.assign({}, o.status);
+  let events = [];
+  if (o.ics) { try { events = parseICS(o.ics, from, to); } catch (e) { status.Outlook = 'could not read the calendar'; } }
+  const emails = (o.mail && o.mail.ok ? o.mail.emails : []).map(e => ({ from: e.from, subject: e.subject, labels: e.labels || [], acct: 'Personal', fwd: false }));
+  const weather = o.wx ? wxFrom(o.wx) : null;
+  const b = brief(now, { weather, events, reminders: [], emails, ignored: 0 });
+  const top = b.actions[0], hr = now.getHours();
+  const greet = b.isNight ? 'Good night' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+  const nextEv = b.today[0];
+  const inbox = b.pri.map(e => ({ h: e.subject, s: `${e.who}${e.kind === 'reply' ? ', needs a reply' : ''}`, tag: e.tags.includes('VIP') ? 'VIP' : e.tags.includes('Career') ? 'Career' : e.tags[0] }));
+  const low = b.emails.length - b.pri.length;
+  const c = palette(b);
+  document.documentElement.style.setProperty('--c0', c[0]);
+  document.documentElement.style.setProperty('--c1', c[1]);
+  document.body.dataset.fx = ambient(b);
+  document.getElementById('app').innerHTML = `
+    <header class="hero">
+      <div class="hl">
+        <div class="greet">${esc(greet)}, ${esc(SETTINGS.name)}</div>
+        <div class="date">${esc(now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }))}, ${esc(fmtT(now))}</div>
+        <h1>${esc(top.h)}</h1>
+        <p class="sub">${esc(top.s)}</p>
+        <p class="aff">${esc(b.aff)}</p>
+      </div>
+      <div class="hr">
+        <div class="temp">${wxIcon(weather)}<span>${weather ? weather.now + '°' : '--°'}</span></div>
+        <div class="wdet">${weather ? `High ${weather.hi}°, low ${weather.lo}°, ${weather.rain}% rain` : 'Weather unavailable'}</div>
+        <ul class="stats">
+          <li>${b.pri.length ? `${b.pri.length} email${b.pri.length === 1 ? '' : 's'} to handle` : 'Inbox calm'}</li>
+          <li>${b.dueTodayAD.length ? `${b.dueTodayAD.length} due today` : nextEv ? `Next: ${esc(nextEv.title)} at ${esc(fmtT(nextEv.start))}` : 'Nothing else on the calendar today'}</li>
+        </ul>
+      </div>
+    </header>
+    <div class="grid">
+      <section class="sec"><h2>Up next</h2>${list(upNext(b), 'Nothing on deck.')}</section>
+      <section class="sec"><h2>Inbox</h2>${list(inbox, 'Nothing needs you right now.')}${low > 0 ? `<p class="none">${low} more unread that look skippable.</p>` : ''}</section>
+      <section class="sec"><h2>Prepare for</h2>${list(b.prep, 'Nothing to prep for.')}</section>
+      <section class="sec"><h2>Look forward to</h2>${list(b.look, 'Plan something fun this week.')}</section>
+    </div>
+    <footer>
+      <span id="upd">Updated ${esc(fmtT(new Date(lastAt || Date.now())))}</span>
+      <button id="refresh" type="button">Refresh</button>
+      <button id="change" type="button">Change connection</button>
+      <span class="conn">${Object.entries(status).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(' &nbsp;|&nbsp; ')}</span>
+    </footer>`;
+  document.getElementById('refresh').onclick = load;
+}
+function setUpd(t) { const u = document.getElementById('upd'); if (u) u.textContent = t; }
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem('daybrief.conn') || 'null'); } catch (e) { return null; } },
+  set(v) { try { localStorage.setItem('daybrief.conn', JSON.stringify(v)); return true; } catch (e) { return false; } },
+  clear() { try { localStorage.removeItem('daybrief.conn'); } catch (e) {} }
+};
+function showSetup(msg) {
+  const c = store.get() || {};
+  document.getElementById('app').innerHTML = `
+    <form class="setup" id="setup">
+      <h1>Connect Daybrief</h1>
+      <p class="sub">Paste the same helper link and phrase your phone uses. They're saved only in this browser on this computer.</p>
+      ${msg ? `<p class="err" role="alert">${esc(msg)}</p>` : ''}
+      <label for="link">Helper link (ends in /exec)</label>
+      <input id="link" type="url" required placeholder="https://script.google.com/macros/s/.../exec" value="${esc(c.link || '')}" autocomplete="off">
+      <label for="phrase">Secret phrase</label>
+      <input id="phrase" type="password" required value="${esc(c.key || '')}" autocomplete="off">
+      <button type="submit">Save and load my day</button>
+    </form>`;
+  document.getElementById('setup').onsubmit = ev => {
+    ev.preventDefault();
+    const link = document.getElementById('link').value.trim().replace(/\?.*$/, ''), key = document.getElementById('phrase').value.trim();
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(link)) { showSetup('That link should start with https://script.google.com and end in /exec.'); return; }
+    store.set({ link, key }); load();
+  };
+}
+async function load() {
+  const c = store.get();
+  if (!c || !c.link || !c.key) { showSetup(); return; }
+  if (loading) return; loading = true; setUpd('Updating');
+  try {
+    const r = await fetch(`${c.link}?key=${encodeURIComponent(c.key)}&view=data`);
+    const o = JSON.parse(await r.text());
+    if (o.ok === false) { loading = false; showSetup(o.error === 'Wrong key' ? 'The phrase did not match. Check capitals and dashes.' : o.error); return; }
+    if (!o.status) { loading = false; showSetup('Your helper needs the newest Code.gs and a new deployment version.'); return; }
+    loading = false; lastAt = Date.now(); lastData = o; render(o);
+  } catch (err) {
+    loading = false;
+    if (lastData) setUpd('Could not refresh. Check your internet connection.');
+    else showSetup('Could not reach your helper. Check the link, and that the helper is deployed with access set to Anyone.');
+  }
+}
+document.addEventListener('click', e => { if (e.target && e.target.id === 'change') { showSetup(); } });
+setInterval(load, 15 * 60e3);                                     // fresh data every 15 minutes
+setInterval(() => { if (lastData) render(lastData); }, 60e3);     // keep "in 20 min" style times current
+window.addEventListener('focus', () => { if (Date.now() - lastAt > 5 * 60e3) load(); });
+load();
+
+(function () {
+  // Light ambient particles. About 30 frames a second, paused when hidden, off with Reduce Motion.
+  var still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var cv = document.getElementById('fx'), x = cv.getContext('2d'), W, H, dpr = Math.min(2, window.devicePixelRatio || 1), parts = [], mode = '', last = 0;
+  function size() { W = innerWidth; H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0); }
+  function seed() {
+    mode = document.body.dataset.fx; parts = [];
+    var n = { rain: 110, snow: 90, stars: 120, sun: 28, cloud: 8 }[mode] || 0;
+    for (var i = 0; i < n; i++) parts.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random(), s: Math.random(), p: Math.random() * 6.28 });
+  }
+  function frame(t) {
+    requestAnimationFrame(frame);
+    if (document.hidden || t - last < 33) return;
+    var dt = Math.min(64, t - last) / 16; last = t;
+    if (mode !== document.body.dataset.fx) seed();
+    x.clearRect(0, 0, W, H);
+    parts.forEach(function (q) {
+      if (mode === 'rain') {
+        q.y += (7 + q.s * 5) * dt; q.x -= 1.2 * dt; if (q.y > H) { q.y = -20; q.x = Math.random() * (W + 40); }
+        x.strokeStyle = 'rgba(255,255,255,' + (0.10 + q.r * 0.15) + ')'; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(q.x, q.y); x.lineTo(q.x - 3, q.y + 12 + q.r * 8); x.stroke();
+      } else if (mode === 'snow') {
+        q.y += (0.5 + q.s * 0.9) * dt; q.p += 0.02 * dt; q.x += Math.sin(q.p) * 0.4 * dt; if (q.y > H) { q.y = -6; q.x = Math.random() * W; }
+        x.fillStyle = 'rgba(255,255,255,' + (0.35 + q.r * 0.4) + ')'; x.beginPath(); x.arc(q.x, q.y, 1.2 + q.r * 2.2, 0, 6.28); x.fill();
+      } else if (mode === 'stars') {
+        q.p += (0.01 + q.s * 0.03) * dt;
+        x.fillStyle = 'rgba(255,255,255,' + (0.15 + (Math.sin(q.p) * 0.5 + 0.5) * 0.6 * q.r) + ')'; x.beginPath(); x.arc(q.x, q.y, 0.6 + q.r * 1.2, 0, 6.28); x.fill();
+      } else if (mode === 'sun') {
+        q.y -= (0.15 + q.s * 0.25) * dt; q.p += 0.01 * dt; q.x += Math.sin(q.p) * 0.2 * dt; if (q.y < -10) { q.y = H + 10; q.x = Math.random() * W; }
+        x.fillStyle = 'rgba(255,230,170,' + (0.10 + q.r * 0.15) + ')'; x.beginPath(); x.arc(q.x, q.y, 2 + q.r * 4, 0, 6.28); x.fill();
+      } else if (mode === 'cloud') {
+        q.x += (0.12 + q.s * 0.15) * dt; if (q.x > W + 200) q.x = -260;
+        x.fillStyle = 'rgba(255,255,255,0.045)'; x.beginPath(); x.ellipse(q.x, q.y, 160 + q.r * 120, 45 + q.r * 30, 0, 0, 6.28); x.fill();
+      }
+    });
+  }
+  size(); addEventListener('resize', function () { size(); seed(); });
+  if (!still) { seed(); requestAnimationFrame(frame); }
+})();
+
+</script>
+</body>
+</html>
