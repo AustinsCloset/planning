@@ -31,6 +31,7 @@ h1{font:700 clamp(24px,3.2vw,36px)/1.15 "Segoe UI Variable Display","Segoe UI",s
 .stats li{padding:3px 0}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
 .sec{background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border-radius:18px;padding:14px 18px}
+.grid>.sec:last-child:nth-child(odd){grid-column:1/-1}
 h2{margin:0 0 6px;font-size:13px;font-weight:700;opacity:.8}
 ul{margin:0;padding:0;list-style:none}
 .sec li{padding:8px 0;border-top:1px solid rgba(255,255,255,.12)}
@@ -97,8 +98,9 @@ function isNameOnly(t) {
 }
 // Anything starting with "ARCH" (course work) is homework, never fun.
 const isCourse = t => /^\s*ARCH\b/i.test(String(t));
+const isPrivate = t => /^\s*private( appointment)?\s*$/i.test(String(t));
 function isFun(t) {
-  if (isCourse(t)) return false;
+  if (isCourse(t) || isPrivate(t)) return false;
   return RULES.fun.test(t) || isNameOnly(t) || SETTINGS.funWords.some(w => w && String(t).toLowerCase().includes(w.toLowerCase()));
 }
 
@@ -355,7 +357,7 @@ function brief(now, d) {
   // Fun or multi-day ones (breaks, trips, birthdays) are not.
   const multiDay = e => e.end - e.start > 864e5 + 3600e3;
   // ARCH all-day events are always due dates; multi-day ones are due on their last day.
-  const isDeadline = e => e.allDay && (isCourse(e.title) || (!multiDay(e) && !isFun(e.title)));
+  const isDeadline = e => e.allDay && !isPrivate(e.title) && (isCourse(e.title) || (!multiDay(e) && !isFun(e.title)));
   const dueDay = e => (multiDay(e) ? new Date(e.end.getTime() - 864e5) : e.start);
   const deadlines = d.events.filter(isDeadline).map(e => ({ ...e, start: dueDay(e) }));
   const allDayToday = d.events.filter(e => e.allDay && e.start <= now && e.end > now && !isDeadline(e));
@@ -399,7 +401,14 @@ function brief(now, d) {
     const tip = wt.find(x => x[1] === 'snow') || wt.find(x => x[1] === 'cold');
     actions.push({ tag: 'Weather', p: 85, h: tip[0].split('. ')[0] + '.', s: tip[0].split('. ').slice(1).join('. ') });
   }
-  if (!actions.length) actions.push({ tag: '', p: 10, h: isNight ? 'Nothing pressing. Wind down.' : today.length ? `Next up: ${today[0].title} at ${fmtT(today[0].start)}` : 'Clear schedule. Pick one thing to move forward.', s: isNight ? 'Tomorrow looks manageable.' : 'You are ahead today.' });
+  if (!actions.length) {
+    const doneToday = timed.some(e => sameDay(e.start, now) && e.end <= now), firstTmr = [...tomorrow].sort((a, b) => a.start - b.start)[0];
+    const tmrLine = firstTmr ? `Tomorrow starts with ${firstTmr.title} at ${fmtT(firstTmr.start)}.` : 'Nothing on the calendar tomorrow yet.';
+    if (today.length) actions.push({ tag: '', p: 10, h: `Next up: ${today[0].title} at ${fmtT(today[0].start)}`, s: 'You are ahead today.' });
+    else if (isNight) actions.push({ tag: '', p: 10, h: 'Nothing pressing. Wind down.', s: tmrLine });
+    else if (doneToday) actions.push({ tag: '', p: 10, h: 'You are done for today.', s: tmrLine });
+    else actions.push({ tag: '', p: 10, h: 'Clear schedule. Pick one thing to move forward.', s: 'You are ahead today.' });
+  }
   actions.sort((a, b) => b.p - a.p);
 
   const fun = d.events.filter(e => (e.start > now || (e.allDay && e.end > now)) && isFun(e.title) && mins(now, e.start) <= 60 * 24 * 7);
@@ -422,7 +431,20 @@ function brief(now, d) {
     : now.getDay() === 5 && isEve ? 'weekend' : isNight ? 'night'
     : (today.length >= 4 || pri.length >= 4 || dueTodayAD.length >= 2) ? 'busy' : hr < 11 ? 'morning' : 'light';
   const pool = AFF[ctx], doy = Math.floor((startOfDay(now) - new Date(now.getFullYear(), 0, 0)) / 864e5);
-  return { now, emails, pri, today, allDayToday, dueTodayAD, dueTomorrowAD, isEve, actions, look, prep, wt, weather: w, aff: pool[doy % pool.length], isNight, ignored: d.ignored || 0 };
+  const todayAll = timed.filter(e => sameDay(e.start, now)).sort((a, b) => a.start - b.start);
+  const tomorrowAll = [...tomorrow].sort((a, b) => a.start - b.start);
+  return { now, emails, pri, today, todayAll, tomorrowAll, allDayToday, dueTodayAD, dueTomorrowAD, isEve, actions, look, prep, wt, weather: w, aff: pool[doy % pool.length], isNight, ignored: d.ignored || 0 };
+}
+
+// Today's timed events in order (classes included), and tomorrow's in the evening.
+function scheduleList(b) {
+  const now = b.now, out = [];
+  const label = e => isPrivate(e.title) ? 'Private appointment' : e.title;
+  const span = e => `${fmtT(e.start)} to ${fmtT(e.end)}${e.location ? ', ' + e.location : ''}`;
+  b.todayAll.forEach(e => out.push({ h: label(e), s: span(e), tag: e.end <= now ? 'Done' : e.start <= now ? 'Now' : isCourse(e.title) ? 'Class' : '' }));
+  b.allDayToday.forEach(e => out.push({ h: label(e), s: 'All day', tag: '' }));
+  if (b.isEve || b.isNight) b.tomorrowAll.forEach(e => out.push({ h: label(e), s: span(e), tag: 'Tomorrow' }));
+  return out;
 }
 
 function upNext(b) {
@@ -527,6 +549,7 @@ function render(o) {
     </header>
     <div class="grid">
       <section class="sec"><h2>Up next</h2>${list(upNext(b), 'Nothing on deck.')}</section>
+      <section class="sec"><h2>Schedule</h2>${list(scheduleList(b), 'Nothing on your calendar today.')}</section>
       <section class="sec"><h2>Inbox</h2>${list(inbox, 'Nothing needs you right now.')}${low > 0 ? `<p class="none">${low} more unread that look skippable.</p>` : ''}</section>
       <section class="sec"><h2>Prepare for</h2>${list(b.prep, 'Nothing to prep for.')}</section>
       <section class="sec"><h2>Look forward to</h2>${list(b.look, 'Plan something fun this week.')}</section>
