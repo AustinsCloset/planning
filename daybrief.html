@@ -493,7 +493,8 @@ let lastData = null, lastAt = 0, loading = false;
 function render(o) {
   const now = new Date(), from = startOfDay(now), to = addDays(from, 9), status = Object.assign({}, o.status);
   let events = [];
-  if (o.ics) { try { events = parseICS(o.ics, from, to); } catch (e) { status.Outlook = 'could not read the calendar'; } }
+  if (o.events) events = o.events.map(e => ({ ...e, start: new Date(e.start), end: new Date(e.end) }));
+  else if (o.ics) { try { events = parseICS(o.ics, from, to); } catch (e) { status.Outlook = 'could not read the calendar'; } }
   const emails = (o.mail && o.mail.ok ? o.mail.emails : []).map(e => ({ from: e.from, subject: e.subject, labels: e.labels || [], acct: 'Personal', fwd: false }));
   const weather = o.wx ? wxFrom(o.wx) : null;
   const b = brief(now, { weather, events, reminders: [], emails, ignored: 0 });
@@ -569,13 +570,16 @@ async function load() {
   if (!c || !c.link || !c.key) { showSetup(); return; }
   if (loading) return; loading = true; setUpd('Updating');
   try {
-    const r = await fetch(`${c.link}?key=${encodeURIComponent(c.key)}&view=data`);
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 45000);
+    const r = await fetch(`${c.link}?key=${encodeURIComponent(c.key)}&view=data`, { signal: ctl.signal });
+    clearTimeout(timer);
     const o = JSON.parse(await r.text());
     if (o.ok === false) { loading = false; showSetup(o.error === 'Wrong key' ? 'The phrase did not match. Check capitals and dashes.' : o.error); return; }
     if (!o.status) { loading = false; showSetup('Your helper needs the newest Code.gs and a new deployment version.'); return; }
     loading = false; lastAt = Date.now(); lastData = o; render(o);
   } catch (err) {
     loading = false;
+    if (err && err.name === 'AbortError') { if (lastData) setUpd('Your helper took too long. Showing the last update.'); else showSetup('Your helper took too long to answer. Make sure you ran setup() once, then refresh.'); return; }
     if (lastData) setUpd('Could not refresh. Check your internet connection.');
     else showSetup('Could not reach your helper. Check the link, and that the helper is deployed with access set to Anyone.');
   }
