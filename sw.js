@@ -1,5 +1,5 @@
 // Keeps the app working offline. Bump VERSION when you change any file.
-const VERSION = 'closet-v5';
+const VERSION = 'closet-v6';
 const SHELL = ['./', './index.html', './manifest.json', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -19,6 +19,10 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  // Only the closet app's own files are kept offline. Other pages on this site (like daybrief.html) always load fresh.
+  const scope = new URL(self.registration.scope);
+  const rel = url.pathname.slice(scope.pathname.length);
+  if (!['', 'index.html', 'manifest.json', 'icon-180.png', 'icon-192.png', 'icon-512.png'].includes(rel)) return;
   e.respondWith(
     caches.open(VERSION).then(async cache => {
       const cached = await cache.match(e.request, { ignoreSearch: true });
